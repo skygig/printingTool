@@ -10,6 +10,12 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <script>
+        // Prevent dark-flash for light theme users
+        if (localStorage.getItem('theme') === 'light') {
+            document.body.classList.add('light-theme');
+        }
+    </script>
     <div class="app-container">
         <!-- Sidebar / Header -->
         <header class="app-header">
@@ -18,9 +24,14 @@
                 <h1>RMS Warehouse</h1>
             </div>
             <div class="subtitle">Document Generator Tool</div>
-            <div class="stats-badge">
-                <span class="indicator"></span>
-                <span id="records-count">Loading database...</span>
+            <div class="header-actions">
+                <div class="stats-badge">
+                    <span class="indicator"></span>
+                    <span id="records-count">Loading database...</span>
+                </div>
+                <button id="theme-toggle" class="btn-theme" title="Toggle Light/Dark Mode" aria-label="Toggle Theme">
+                    <span class="theme-icon">☀️</span>
+                </button>
             </div>
         </header>
 

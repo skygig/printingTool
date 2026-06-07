@@ -75,6 +75,28 @@ window.addEventListener('DOMContentLoaded', () => {
     nextPageBtn.addEventListener('click', () => changePage(1));
     generatorForm.addEventListener('submit', handleFormSubmit);
     btnShowInFolder.addEventListener('click', openOutputsFolder);
+
+    // Theme Toggle Handler
+    const themeToggle = document.getElementById('theme-toggle');
+    const themeIcon = themeToggle ? themeToggle.querySelector('.theme-icon') : null;
+    
+    // Sync initial toggle button state
+    if (document.body.classList.contains('light-theme')) {
+        if (themeIcon) themeIcon.textContent = '🌙';
+    } else {
+        if (themeIcon) themeIcon.textContent = '☀️';
+    }
+    
+    if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('light-theme');
+            const isLight = document.body.classList.contains('light-theme');
+            localStorage.setItem('theme', isLight ? 'light' : 'dark');
+            if (themeIcon) {
+                themeIcon.textContent = isLight ? '🌙' : '☀️';
+            }
+        });
+    }
 });
 
 // Fetch CSV Data from API
