@@ -43,7 +43,7 @@ class TestDocumentGeneratorApp(unittest.TestCase):
             'part_num': '1-503-24-065',
             'part_desc': 'TEFLON SEAL (TEST_RUN)',
             'description': 'TEFLON SEAL (TEST_RUN)',
-            'qty': '4',
+            'qty': '6',
             'backordered': '0',
             'hs_code': '3926.90.9985',
             'amount': '250.00',

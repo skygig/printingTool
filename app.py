@@ -142,13 +142,20 @@ def generate_documents():
         generate_commercial_invoice(ci_path, data)
         
         # 3. Generate Part Labels (DOCX)
-        # We need templates PO, Part#, Description
+        # Parse qty from request data
+        qty_str = data.get('qty', '4')
+        try:
+            qty = max(1, int(qty_str))
+        except (ValueError, TypeError):
+            qty = 4
+
         generate_docx_labels(
             template_path=TEMPLATE_DOCX_PATH,
             output_path=label_path,
             po_num=po_num,
             part_num=data.get('part_num', ''),
-            description=data.get('part_desc', '')
+            description=data.get('part_desc', ''),
+            qty=qty
         )
         
         return jsonify({
