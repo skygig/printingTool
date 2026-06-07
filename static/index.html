@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RMS Warehouse Document Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar / Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <span class="logo-icon">📦</span>
+                <h1>RMS Warehouse</h1>
+            </div>
+            <div class="subtitle">Document Generator Tool</div>
+            <div class="stats-badge">
+                <span class="indicator"></span>
+                <span id="records-count">Loading database...</span>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Layout -->
+        <main class="dashboard-layout">
+            <!-- Left Side Column Container -->
+            <div class="dashboard-left-col">
+                <!-- Left Side: Table & Search -->
+                <section class="records-section card">
+                <div class="card-header">
+                    <h2>Inventory Records</h2>
+                    <div class="search-box">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="search-input" placeholder="Search by PO, RMS P.O, Part, Customer, Date...">
+                    </div>
+                </div>
+
+                <!-- Table Container -->
+                <div class="table-container">
+                    <table id="records-table">
+                        <thead>
+                            <tr>
+                                <th>RMS P.O.</th>
+                                <th>Customer</th>
+                                <th>Customer P.O.</th>
+                                <th>Part Description</th>
+                                <th>Outbound Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body">
+                            <!-- Rows loaded dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <div class="pagination">
+                    <button id="prev-page" class="btn btn-secondary" disabled>← Previous</button>
+                    <span id="page-indicator">Page 1 of 1</span>
+                    <button id="next-page" class="btn btn-secondary" disabled>Next →</button>
+                </div>
+            </section>
+
+            <!-- Generated Documents Section -->
+            <section class="generated-section card">
+                <div class="card-header">
+                    <h2>Generated Documents</h2>
+                    <button class="btn btn-folder" id="btn-show-in-folder">
+                        📂 Show in Folder
+                    </button>
+                </div>
+                <div class="docs-list-container">
+                    <ul class="docs-list" id="docs-list">
+                        <li class="empty-list-msg">No documents generated yet.</li>
+                    </ul>
+                </div>
+            </section>
+            </div>
+
+            <!-- Right Side: Details & Editor Panel -->
+            <section class="editor-section card" id="editor-card">
+                <div class="empty-state" id="empty-state">
+                    <div class="empty-state-icon">📋</div>
+                    <h3>No Record Selected</h3>
+                    <p>Select a row from the database to view, edit details, and generate documents.</p>
+                </div>
+
+                <div class="editor-content hidden" id="editor-content">
+                    <div class="editor-header">
+                        <div class="po-badge-title">
+                            <h3>RMS P.O: <span id="po-title">9679</span></h3>
+                        </div>
+                    </div>
+
+                    <form id="generator-form" class="editor-form">
+                        <div class="form-section-title">Item Details</div>
+                        <div class="form-grid">
+                            <div class="form-group span-2">
+                                <label for="part_received">Raw CSV Description</label>
+                                <input type="text" id="part_received" class="input-readonly" readonly>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="part_num">Part Number</label>
+                                <input type="text" id="part_num" placeholder="e.g. 1-503-24-065">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="part_desc">Description</label>
+                                <input type="text" id="part_desc" placeholder="e.g. TEFLON SEAL">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="qty">Quantity Ordered</label>
+                                <input type="number" id="qty" min="0" placeholder="e.g. 4">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="backordered">Backordered Qty</label>
+                                <input type="number" id="backordered" min="0" value="0">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="hs_code">HS Code</label>
+                                <input type="text" id="hs_code" placeholder="e.g. 3926.90.9985">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="amount">Invoice Amount ($)</label>
+                                <input type="text" id="amount" placeholder="e.g. 120.00">
+                            </div>
+                        </div>
+
+                        <div class="form-section-title">Shipping & Order Metadata</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="customer_po">Customer P.O. / S.O. #</label>
+                                <input type="text" id="customer_po" placeholder="e.g. 42300276510">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="line_num">Line Number</label>
+                                <input type="text" id="line_num" placeholder="e.g. 1">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="date">Printing Date</label>
+                                <input type="text" id="date" placeholder="e.g. 05/19/2026">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="order_date">Order Date</label>
+                                <input type="text" id="order_date" placeholder="e.g. 04/14/2026">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="weight">Weight (Lbs.)</label>
+                                <input type="text" id="weight" placeholder="e.g. 2LBS">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="size">Size (Inches)</label>
+                                <input type="text" id="size" placeholder="e.g. 13x11x5">
+                            </div>
+                        </div>
+
+                        <div class="form-section-title">Addresses</div>
+                        <div class="form-grid">
+                            <div class="form-group span-2">
+                                <label for="sold_to_address">Sold To Address</label>
+                                <textarea id="sold_to_address" rows="3" placeholder="Sold to Company & Address..."></textarea>
+                            </div>
+
+                            <div class="form-group span-2">
+                                <label for="ship_to_address">Ship To Address</label>
+                                <textarea id="ship_to_address" rows="3" placeholder="Ship to Company & Address..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="form-section-title">Invoice Specific Notes</div>
+                        <div class="form-grid">
+                            <div class="form-group span-2">
+                                <label for="free_replacement_note">Free Replacement Text (if any)</label>
+                                <input type="text" id="free_replacement_note" placeholder="e.g. Free replacement" value="Free replacement">
+                            </div>
+                            
+                            <div class="form-group span-2">
+                                <label>Notes (One note per line)</label>
+                                <textarea id="notes_list" rows="3" placeholder="1. Vent Plug need to be shipped loose&#10;2. Usage of Teflon tape is prohibited&#10;3. SS BOLTS LENGTH 2.25&quot;"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="action-buttons">
+                            <button type="submit" class="btn btn-primary" id="btn-generate">
+                                <span class="btn-icon">⚡</span> Generate All 3 Documents
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast hidden">
+        <div class="toast-content">
+            <span class="toast-icon" id="toast-icon">✔️</span>
+            <div class="toast-message">
+                <h4 id="toast-title">Success</h4>
+                <p id="toast-body">All documents generated successfully!</p>
+                <div class="toast-links hidden" id="toast-links">
+                    <button class="toast-link" id="link-ps">📄 Packing Slip</button>
+                    <button class="toast-link" id="link-ci">💵 Commercial Invoice</button>
+                    <button class="toast-link" id="link-label">🏷️ Label</button>
+                </div>
+            </div>
+        </div>
+        <button class="toast-close" onclick="closeToast()">×</button>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
