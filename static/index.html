@@ -49,6 +49,35 @@
                     </div>
                 </div>
 
+                <!-- Active Database Control Bar -->
+                <div class="db-control-bar">
+                    <div class="db-main-row">
+                        <div class="db-info">
+                            <span class="db-icon">📊</span>
+                            <span id="db-filename" class="db-filename">Loading database file...</span>
+                        </div>
+                        <div class="db-actions">
+                            <button id="btn-pick-file" class="btn btn-secondary btn-sm" type="button">
+                                📁 Pick File
+                            </button>
+                            <input type="file" id="db-file-input" accept=".xlsx,.xls,.csv" style="display: none;">
+                        </div>
+                    </div>
+                    <!-- Excel-specific controls: Sheet picker and Header row input -->
+                    <div id="excel-actions-row" class="excel-actions-row hidden">
+                        <div class="excel-action-item">
+                            <span class="control-label">📋 Sheet:</span>
+                            <select id="sheet-select" class="sheet-select">
+                                <option value="">Select Sheet...</option>
+                            </select>
+                        </div>
+                        <div class="excel-action-item">
+                            <span class="control-label">🔝 Header Row:</span>
+                            <input type="number" id="header-row-input" class="header-row-input" min="1" value="1">
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Table Container -->
                 <div class="table-container">
                     <table id="records-table">
@@ -126,7 +155,7 @@
                             </div>
 
                             <div class="form-group">
-                                <label for="qty">Quantity Ordered</label>
+                                <label for="qty">Quantity Received</label>
                                 <input type="number" id="qty" min="0" placeholder="e.g. 4">
                             </div>
 

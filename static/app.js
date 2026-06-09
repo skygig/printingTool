@@ -29,6 +29,14 @@ const pageIndicator = document.getElementById('page-indicator');
 const prevPageBtn = document.getElementById('prev-page');
 const nextPageBtn = document.getElementById('next-page');
 
+const btnPickFile = document.getElementById('btn-pick-file');
+const dbFileInput = document.getElementById('db-file-input');
+const excelActionsRow = document.getElementById('excel-actions-row');
+const sheetSelect = document.getElementById('sheet-select');
+const headerRowInput = document.getElementById('header-row-input');
+const dbFilename = document.getElementById('db-filename');
+
+
 const emptyState = document.getElementById('empty-state');
 const editorContent = document.getElementById('editor-content');
 const poTitle = document.getElementById('po-title');
@@ -75,6 +83,16 @@ window.addEventListener('DOMContentLoaded', () => {
     nextPageBtn.addEventListener('click', () => changePage(1));
     generatorForm.addEventListener('submit', handleFormSubmit);
     btnShowInFolder.addEventListener('click', openOutputsFolder);
+    
+    btnPickFile.addEventListener('click', () => dbFileInput.click());
+    dbFileInput.addEventListener('change', handleFileUpload);
+    sheetSelect.addEventListener('change', handleSheetChange);
+    headerRowInput.addEventListener('change', handleHeaderRowChange);
+    headerRowInput.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') {
+            handleHeaderRowChange();
+        }
+    });
 
     // Theme Toggle Handler
     const themeToggle = document.getElementById('theme-toggle');
@@ -99,14 +117,53 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Fetch CSV Data from API
+// Fetch CSV/Excel Data from API
 function loadDatabase() {
-    fetch('/api/records')
+    // 1. Fetch DB status first
+    fetch('/api/db-status')
+        .then(res => res.json())
+        .then(status => {
+            dbFilename.textContent = status.filename;
+            
+            // Render sheets if it's an Excel database
+            if (status.sheets && status.sheets.length > 0) {
+                sheetSelect.innerHTML = '';
+                status.sheets.forEach(sheet => {
+                    const opt = document.createElement('option');
+                    opt.value = sheet;
+                    opt.textContent = sheet;
+                    if (sheet === status.sheet_name) {
+                        opt.selected = true;
+                    }
+                    sheetSelect.appendChild(opt);
+                });
+                headerRowInput.value = status.header_row || 1;
+                excelActionsRow.classList.remove('hidden');
+            } else {
+                excelActionsRow.classList.add('hidden');
+                sheetSelect.innerHTML = '<option value="">Select Sheet...</option>';
+                headerRowInput.value = 1;
+            }
+            
+            // 2. Fetch actual records
+            return fetch('/api/records');
+        })
         .then(res => res.json())
         .then(data => {
             records = data;
             filteredRecords = [...records];
             recordsCount.textContent = `${records.length} records loaded`;
+            
+            // Deselect selected row if the records changed
+            if (selectedRecord) {
+                const stillExists = records.some(r => r.row_id === selectedRecord.row_id);
+                if (!stillExists) {
+                    selectedRecord = null;
+                    emptyState.classList.remove('hidden');
+                    editorContent.classList.add('hidden');
+                }
+            }
+            
             renderTable();
         })
         .catch(err => {
@@ -525,4 +582,174 @@ function openOutputsFolder() {
 
 function closeToast() {
     toast.classList.add('hidden');
+}
+
+// File Upload Handler
+function handleFileUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // Update filename text to show loading progress
+    dbFilename.textContent = `Uploading ${file.name}...`;
+    recordsCount.textContent = "Uploading...";
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    fetch('/api/upload-database', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        // Clear file input value
+        dbFileInput.value = '';
+        
+        if (data.success) {
+            dbFilename.textContent = data.filename;
+            
+            if (data.type === 'excel') {
+                sheetSelect.innerHTML = '';
+                data.sheets.forEach(sheet => {
+                    const opt = document.createElement('option');
+                    opt.value = sheet;
+                    opt.textContent = sheet;
+                    if (sheet === data.selected_sheet) {
+                        opt.selected = true;
+                    }
+                    sheetSelect.appendChild(opt);
+                });
+                headerRowInput.value = data.header_row || 1;
+                excelActionsRow.classList.remove('hidden');
+            } else {
+                excelActionsRow.classList.add('hidden');
+                sheetSelect.innerHTML = '<option value="">Select Sheet...</option>';
+                headerRowInput.value = 1;
+            }
+            
+            records = data.records;
+            filteredRecords = [...records];
+            currentPage = 1;
+            recordsCount.textContent = `${records.length} records loaded`;
+            
+            // Clear selections
+            selectedRecord = null;
+            emptyState.classList.remove('hidden');
+            editorContent.classList.add('hidden');
+            
+            // Reset search input
+            searchInput.value = '';
+            
+            renderTable();
+            showToast("Database Loaded", `Successfully loaded database file "${data.filename}".`, null, false);
+        } else {
+            showToast("Upload Error", data.error || "Failed to upload file", null, true);
+            loadDatabase(); // Restore state
+        }
+    })
+    .catch(err => {
+        console.error("Upload error:", err);
+        showToast("Server Error", "An error occurred while uploading the file.", null, true);
+        loadDatabase(); // Restore state
+    });
+}
+
+// Sheet Change Handler
+function handleSheetChange(e) {
+    const selectedSheet = e.target.value;
+    if (!selectedSheet) return;
+    
+    recordsCount.textContent = "Loading sheet...";
+    
+    const headerRowVal = headerRowInput.value || 1;
+    
+    fetch('/api/load-sheet', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+            sheet_name: selectedSheet,
+            header_row: headerRowVal
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            records = data.records;
+            filteredRecords = [...records];
+            currentPage = 1;
+            recordsCount.textContent = `${records.length} records loaded`;
+            
+            // Clear selections
+            selectedRecord = null;
+            emptyState.classList.remove('hidden');
+            editorContent.classList.add('hidden');
+            
+            // Reset search input
+            searchInput.value = '';
+            
+            renderTable();
+            showToast("Sheet Loaded", `Successfully loaded sheet "${selectedSheet}".`, null, false);
+        } else {
+            showToast("Load Error", data.error || "Failed to load sheet", null, true);
+            loadDatabase(); // Restore state
+        }
+    })
+    .catch(err => {
+        console.error("Sheet change error:", err);
+        showToast("Server Error", "An error occurred while loading the sheet.", null, true);
+        loadDatabase(); // Restore state
+    });
+}
+
+// Header Row Change Handler
+function handleHeaderRowChange() {
+    const headerRowVal = parseInt(headerRowInput.value, 10);
+    if (isNaN(headerRowVal) || headerRowVal < 1) {
+        showToast("Invalid Input", "Header row must be a positive number.", null, true);
+        return;
+    }
+    
+    const selectedSheet = sheetSelect.value;
+    recordsCount.textContent = "Updating header row...";
+    
+    fetch('/api/load-sheet', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+            sheet_name: selectedSheet,
+            header_row: headerRowVal
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            records = data.records;
+            filteredRecords = [...records];
+            currentPage = 1;
+            recordsCount.textContent = `${records.length} records loaded`;
+            
+            // Clear selections
+            selectedRecord = null;
+            emptyState.classList.remove('hidden');
+            editorContent.classList.add('hidden');
+            
+            // Reset search input
+            searchInput.value = '';
+            
+            renderTable();
+            showToast("Header Row Applied", `Successfully loaded records starting from row ${data.header_row}.`, null, false);
+        } else {
+            showToast("Load Error", data.error || "Failed to apply header row", null, true);
+            loadDatabase(); // Restore state
+        }
+    })
+    .catch(err => {
+        console.error("Header row change error:", err);
+        showToast("Server Error", "An error occurred while changing the header row.", null, true);
+        loadDatabase(); // Restore state
+    });
 }

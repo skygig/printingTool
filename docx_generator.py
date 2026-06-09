@@ -91,7 +91,7 @@ def generate_docx_labels(template_path, output_path, po_num, part_num, descripti
     return output_path
 
 if __name__ == "__main__":
-    # Test generation
-    template = "/Users/akashsingh/Downloads/PrintingTool/GE Label - 42300276510.docx"
-    output = "/Users/akashsingh/Downloads/PrintingTool/Outputs/test_label.docx"
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    template = os.path.join(base_dir, "GE Label - 42300276510.docx")
+    output = os.path.join(base_dir, "Outputs/test_label.docx")
     generate_docx_labels(template, output, "42300191168", "1-503-24-065", "TEFLON SEAL (TEST)", 6)

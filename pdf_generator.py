@@ -39,9 +39,10 @@ class NumberedCanvas(canvas.Canvas):
 
 def get_image_path(filename):
     """Locates the logo image if available, else returns None"""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
     paths = [
-        os.path.join("/Users/akashsingh/Downloads/PrintingTool/Extracted_Images", filename),
-        os.path.join("/Users/akashsingh/Downloads/PrintingTool", filename),
+        os.path.join(base_dir, "Extracted_Images", filename),
+        os.path.join(base_dir, filename),
         # Fallback to current directory
         filename
     ]
@@ -764,5 +765,6 @@ if __name__ == "__main__":
         ],
         'free_replacement_note': 'Free replacement'
     }
-    generate_printing_slip("/Users/akashsingh/Downloads/PrintingTool/Outputs/test_ps.pdf", test_data)
-    generate_commercial_invoice("/Users/akashsingh/Downloads/PrintingTool/Outputs/test_ci.pdf", test_data)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    generate_printing_slip(os.path.join(base_dir, "Outputs/test_ps.pdf"), test_data)
+    generate_commercial_invoice(os.path.join(base_dir, "Outputs/test_ci.pdf"), test_data)

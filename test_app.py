@@ -79,5 +79,176 @@ class TestDocumentGeneratorApp(unittest.TestCase):
         print(f"    CI: {ci_path}")
         print(f"    Label: {label_path}")
 
+    def test_database_picker_api(self):
+        print("Testing Database Picker and Upload endpoints...")
+        
+        # Test 1: Get DB Status
+        response = self.app.get('/api/db-status')
+        self.assertEqual(response.status_code, 200)
+        status = json.loads(response.data)
+        self.assertIn('filename', status)
+        self.assertIn('sheet_name', status)
+        self.assertIn('sheets', status)
+        print("  /api/db-status verified.")
+        
+        # Test 2: Upload a sample CSV database
+        import io
+        csv_content = (
+            "Inbound Date,RMS P.O.,Part Received/QTY/PN,Vendor,Promise Date,Inbound Notes,Vendor Contact,Received Date,Inbound Carrier,Inbound Tracking,Inbound L,Inbound W,Inbound H,Inbound Weight,Inbound Charges,Outbound Date,Customer,Customer P.O.,RMS Invoice,Ship To,Line Num,HS Code,Shipped Date,Invoice Status,Outbound L,Outbound W,Outbound H,Outbound Weight,Outbound Carrier,Outbound Tracking,Crating Charges,Shipping Charges,Customer Contact,Outbound Notes\n"
+            "06/07/2026,9999,PART_A QTY 10 PN 123-456,VENDOR_A,,,,,,,,,,,,,,06/09/2026,CUST_A,42300000000,,,,,,,,,,,,,,,\n"
+        )
+        
+        data = {
+            'file': (io.BytesIO(csv_content.encode('utf-8')), 'test_mock_db.csv')
+        }
+        
+        response = self.app.post(
+            '/api/upload-database',
+            data=data,
+            content_type='multipart/form-data'
+        )
+        self.assertEqual(response.status_code, 200)
+        upload_res = json.loads(response.data)
+        self.assertTrue(upload_res['success'])
+        self.assertEqual(upload_res['filename'], 'test_mock_db.csv')
+        self.assertTrue(len(upload_res['records']) > 0)
+        self.assertEqual(upload_res['records'][0]['rms_po'], '9999')
+        print("  /api/upload-database CSV upload verified.")
+        
+        # Cleanup mock file
+        mock_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_mock_db.csv')
+        if os.path.exists(mock_file_path):
+            os.remove(mock_file_path)
+
+        # Test 3: Upload a sample XLSX database
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "MainSheet"
+        headers = [
+            "Inbound Date", "RMS P.O.", "Part Received/QTY/PN", "Vendor", "Promise Date",
+            "Inbound Notes", "Vendor Contact", "Received Date", "Inbound Carrier", "Inbound Tracking",
+            "Inbound L", "Inbound W", "Inbound H", "Inbound Weight", "Inbound Charges",
+            "Outbound Date", "Customer", "Customer P.O.", "RMS Invoice", "Ship To",
+            "Line Num", "HS Code", "Shipped Date", "Invoice Status", "Outbound L",
+            "Outbound W", "Outbound H", "Outbound Weight", "Outbound Carrier", "Outbound Tracking",
+            "Crating Charges", "Shipping Charges", "Customer Contact", "Outbound Notes"
+        ]
+        ws.append(headers)
+        row_data = [""] * 34
+        row_data[1] = "8888"
+        row_data[2] = "PART_B QTY 5 PN 789-012"
+        row_data[16] = "CUST_B"
+        row_data[17] = "42300000001"
+        ws.append(row_data)
+        
+        excel_file = io.BytesIO()
+        wb.save(excel_file)
+        excel_file.seek(0)
+        
+        data_xlsx = {
+            'file': (excel_file, 'test_mock_db.xlsx')
+        }
+        
+        response = self.app.post(
+            '/api/upload-database',
+            data=data_xlsx,
+            content_type='multipart/form-data'
+        )
+        self.assertEqual(response.status_code, 200)
+        upload_res = json.loads(response.data)
+        self.assertTrue(upload_res['success'])
+        self.assertEqual(upload_res['type'], 'excel')
+        self.assertEqual(upload_res['filename'], 'test_mock_db.xlsx')
+        self.assertIn('sheets', upload_res)
+        self.assertEqual(upload_res['sheets'], ['MainSheet'])
+        self.assertTrue(len(upload_res['records']) > 0)
+        self.assertEqual(upload_res['records'][0]['rms_po'], '8888')
+        print("  /api/upload-database XLSX upload verified.")
+        
+        # Cleanup mock file
+        mock_file_path_xlsx = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_mock_db.xlsx')
+        if os.path.exists(mock_file_path_xlsx):
+            os.remove(mock_file_path_xlsx)
+
+        # Test 4: Load a sheet with a custom header row number
+        wb_offset = openpyxl.Workbook()
+        ws_offset = wb_offset.active
+        ws_offset.title = "OffsetSheet"
+        ws_offset.append(["Garbage Title Row", "", "", ""]) # Row 1
+        ws_offset.append(headers) # Row 2
+        row_offset = [""] * 34
+        row_offset[1] = "7777"
+        row_offset[2] = "PART_C QTY 3 PN 345-678"
+        row_offset[16] = "CUST_C"
+        row_offset[17] = "42300000002"
+        ws_offset.append(row_offset) # Row 3
+        
+        excel_file_offset = io.BytesIO()
+        wb_offset.save(excel_file_offset)
+        excel_file_offset.seek(0)
+        
+        data_offset = {
+            'file': (excel_file_offset, 'test_header_offset.xlsx')
+        }
+        
+        response = self.app.post(
+            '/api/upload-database',
+            data=data_offset,
+            content_type='multipart/form-data'
+        )
+        self.assertEqual(response.status_code, 200)
+        
+        response = self.app.post(
+            '/api/load-sheet',
+            data=json.dumps({
+                'sheet_name': 'OffsetSheet',
+                'header_row': 2
+            }),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        load_res = json.loads(response.data)
+        self.assertTrue(load_res['success'])
+        self.assertEqual(load_res['header_row'], 2)
+        self.assertTrue(len(load_res['records']) > 0)
+        self.assertEqual(load_res['records'][0]['row_id'], 3)
+        self.assertEqual(load_res['records'][0]['rms_po'], '7777')
+        print("  /api/load-sheet with header_row offset verified.")
+        
+        # Test 5: Verify db_config.json is created and loaded correctly
+        config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'db_config.json')
+        self.assertTrue(os.path.exists(config_path), "db_config.json was not created.")
+        
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config_data = json.load(f)
+            
+        self.assertEqual(config_data['filename'], 'test_header_offset.xlsx')
+        self.assertEqual(config_data['sheet_name'], 'OffsetSheet')
+        self.assertEqual(config_data['header_row'], 2)
+        print("  db_config.json creation and correct contents verified.")
+        
+        # Verify startup loader can parse this configuration
+        from app import load_db_config
+        import app as app_module
+        app_module.CURRENT_DB_NAME = None
+        app_module.CURRENT_SHEET = None
+        app_module.CURRENT_HEADER_ROW = 1
+        
+        # Load config
+        load_db_config()
+        self.assertEqual(app_module.CURRENT_DB_NAME, 'test_header_offset.xlsx')
+        self.assertEqual(app_module.CURRENT_SHEET, 'OffsetSheet')
+        self.assertEqual(app_module.CURRENT_HEADER_ROW, 2)
+        print("  app.load_db_config() startup reload verified.")
+        
+        # Cleanup mock offset file and config file
+        mock_file_path_offset = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_header_offset.xlsx')
+        if os.path.exists(mock_file_path_offset):
+            os.remove(mock_file_path_offset)
+        if os.path.exists(config_path):
+            os.remove(config_path)
+
 if __name__ == '__main__':
     unittest.main()
+

@@ -12,4 +12,6 @@ def inspect_cell_runs(path):
             print(f"      Run {r_idx}: text='{run.text}', font_name='{run.font.name}', font_size={run.font.size}")
 
 if __name__ == "__main__":
-    inspect_cell_runs("/Users/akashsingh/Downloads/PrintingTool/GE Label - 42300276510.docx")
+    import os
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    inspect_cell_runs(os.path.join(base_dir, "GE Label - 42300276510.docx"))
