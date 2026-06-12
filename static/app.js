@@ -55,6 +55,7 @@ const toastIcon = document.getElementById('toast-icon');
 
 // Form Input Elements
 const inputCustomerPo = document.getElementById('customer_po');
+const inputLineNum = document.getElementById('line_num');
 const inputDate = document.getElementById('date');
 const inputOrderDate = document.getElementById('order_date');
 const inputWeight = document.getElementById('weight');
@@ -104,6 +105,19 @@ window.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('theme', isLight ? 'light' : 'dark');
             if (themeIcon) {
                 themeIcon.textContent = isLight ? '🌙' : '☀️';
+            }
+        });
+    }
+
+    // Sync global line number with the first item's line number
+    if (inputLineNum) {
+        inputLineNum.addEventListener('input', () => {
+            const firstItemCard = document.querySelector('.item-edit-card');
+            if (firstItemCard) {
+                const firstLineInput = firstItemCard.querySelector('.item-line-num');
+                if (firstLineInput) {
+                    firstLineInput.value = inputLineNum.value;
+                }
             }
         });
     }
@@ -427,10 +441,21 @@ function selectRow(record, trElement) {
             </div>
         `;
         itemsContainer.appendChild(card);
+
+        // Sync first item's line number with the global line number input
+        const lineNumInput = card.querySelector('.item-line-num');
+        if (index === 0 && inputLineNum) {
+            lineNumInput.addEventListener('input', () => {
+                inputLineNum.value = lineNumInput.value;
+            });
+        }
     });
     
     // Fill in shared Form Inputs
     inputCustomerPo.value = record.customer_po || '';
+    if (inputLineNum) {
+        inputLineNum.value = record.line_num || '';
+    }
     inputDate.value = getFormattedToday();
     
     // Pre-fill Order Date (outbound_date if exists, else inbound_date)
@@ -516,7 +541,7 @@ function handleFormSubmit(e) {
         backordered: firstItem.backordered || '0',
         hs_code: firstItem.hs_code || '',
         amount: firstItem.amount || '0.00',
-        line_num: firstItem.line_num || '1',
+        line_num: (inputLineNum ? inputLineNum.value : '') || firstItem.line_num || '1',
         date: inputDate.value,
         order_date: inputOrderDate.value,
         weight: inputWeight.value,
