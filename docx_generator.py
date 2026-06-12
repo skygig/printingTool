@@ -3,10 +3,11 @@ import os
 import copy
 from docx.table import Table
 
-def generate_docx_labels(template_path, output_path, po_num, part_num, description, qty=4):
+def generate_docx_labels(template_path, output_path, po_num=None, part_num=None, description=None, qty=4, items=None):
     """
     Modifies the grid-based part label DOCX template.
-    Generates exactly `qty` labels by duplicating template tables and paragraphs.
+    Generates labels for each item according to its specified quantity,
+    placing them sequentially within the label document.
     Preserves original layout, formatting, and styles using XML element cloning.
     """
     if not os.path.exists(template_path):
@@ -32,62 +33,90 @@ def generate_docx_labels(template_path, output_path, po_num, part_num, descripti
             continue
         body.remove(child)
         
-    # Rebuild the document body with exactly `qty` labels
-    for i in range(qty):
-        # 1. Clone and insert table XML
-        tbl_xml = copy.deepcopy(table_templates[i % 4])
-        body.insert(body.index(sectPr), tbl_xml)
+    if items is None:
+        items = [{
+            'po_num': po_num,
+            'part_num': part_num,
+            'description': description,
+            'qty': qty
+        }]
         
-        # 2. Modify the cloned table contents (run-replacement to preserve styles)
-        table = Table(tbl_xml, doc)
-        if len(table.rows) > 0 and len(table.rows[0].cells) > 1:
-            cell = table.cell(0, 1)
+    # Rebuild the document body with the labels for each item
+    label_index = 0
+    # Calculate total quantity across all items
+    total_qty = 0
+    valid_items = []
+    for item in items:
+        item_qty_str = item.get('qty', 0)
+        try:
+            item_qty = max(0, int(item_qty_str))
+        except (ValueError, TypeError):
+            item_qty = 0
+        if item_qty > 0:
+            total_qty += item_qty
+            valid_items.append((item, item_qty))
             
-            # Paragraph 2: GE PO# <po>
-            if len(cell.paragraphs) > 2:
-                p2 = cell.paragraphs[2]
-                if len(p2.runs) >= 3:
-                    p2.runs[2].text = str(po_num)
-                else:
-                    p2.text = f"GE PO#   {po_num}"
+    for item, item_qty in valid_items:
+        item_po = item.get('po_num') or item.get('customer_po') or po_num
+        item_part = item.get('part_num', '')
+        item_desc = item.get('part_desc') or item.get('description') or ''
+        
+        for q in range(item_qty):
+            # 1. Clone and insert table XML
+            tbl_xml = copy.deepcopy(table_templates[label_index % 4])
+            body.insert(body.index(sectPr), tbl_xml)
             
-            # Paragraph 3: Part# <part_num>
-            if len(cell.paragraphs) > 3:
-                p3 = cell.paragraphs[3]
-                if len(p3.runs) >= 3:
-                    p3.runs[2].text = str(part_num)
-                else:
-                    p3.text = f"Part#       {part_num}"
+            # 2. Modify the cloned table contents (run-replacement to preserve styles)
+            table = Table(tbl_xml, doc)
+            if len(table.rows) > 0 and len(table.rows[0].cells) > 1:
+                cell = table.cell(0, 1)
+                
+                # Paragraph 2: GE PO# <po>
+                if len(cell.paragraphs) > 2:
+                    p2 = cell.paragraphs[2]
+                    if len(p2.runs) >= 3:
+                        p2.runs[2].text = str(item_po)
+                    else:
+                        p2.text = f"GE PO#   {item_po}"
+                
+                # Paragraph 3: Part# <part_num>
+                if len(cell.paragraphs) > 3:
+                    p3 = cell.paragraphs[3]
+                    if len(p3.runs) >= 3:
+                        p3.runs[2].text = str(item_part)
+                    else:
+                        p3.text = f"Part#       {item_part}"
+                
+                # Paragraph 4: Description: <description>
+                if len(cell.paragraphs) > 4:
+                    p4 = cell.paragraphs[4]
+                    if len(p4.runs) >= 1:
+                        p4.runs[0].text = f"Description:    {item_desc}"
+                    else:
+                        p4.text = f"Description:    {item_desc}                              "
             
-            # Paragraph 4: Description: <description>
-            if len(cell.paragraphs) > 4:
-                p4 = cell.paragraphs[4]
-                if len(p4.runs) >= 1:
-                    p4.runs[0].text = f"Description:    {description}"
+            # 3. Add separator (spacers on same page, page break between pages)
+            if label_index < total_qty - 1:
+                if (label_index + 1) % 4 == 0:
+                    # Add a page break paragraph before sectPr
+                    p = doc.add_paragraph()
+                    p.add_run().add_break(docx.enum.text.WD_BREAK.PAGE)
+                    p_xml = p._p
+                    body.remove(p_xml)
+                    body.insert(body.index(sectPr), p_xml)
                 else:
-                    p4.text = f"Description:    {description}                              "
-                    
-        # 3. Add separator (spacers on same page, page break between pages)
-        if i < qty - 1:
-            if (i + 1) % 4 == 0:
-                # Add a page break paragraph before sectPr
-                p = doc.add_paragraph()
-                p.add_run().add_break(docx.enum.text.WD_BREAK.PAGE)
-                p_xml = p._p
-                body.remove(p_xml)
-                body.insert(body.index(sectPr), p_xml)
-            else:
-                # Add two spacer paragraphs
-                if spacer_template is not None:
-                    p1_xml = copy.deepcopy(spacer_template)
-                    p2_xml = copy.deepcopy(spacer_template)
-                    body.insert(body.index(sectPr), p1_xml)
-                    body.insert(body.index(sectPr), p2_xml)
-                    
+                    # Add two spacer paragraphs
+                    if spacer_template is not None:
+                        p1_xml = copy.deepcopy(spacer_template)
+                        p2_xml = copy.deepcopy(spacer_template)
+                        body.insert(body.index(sectPr), p1_xml)
+                        body.insert(body.index(sectPr), p2_xml)
+            label_index += 1
+            
     # Save the modified document
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     doc.save(output_path)
-    print(f"Generated label document with {qty} labels at: {output_path}")
+    print(f"Generated label document with {total_qty} labels at: {output_path}")
     return output_path
 
 if __name__ == "__main__":

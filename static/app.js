@@ -54,15 +54,7 @@ const toastLinks = document.getElementById('toast-links');
 const toastIcon = document.getElementById('toast-icon');
 
 // Form Input Elements
-const inputPartReceived = document.getElementById('part_received');
-const inputPartNum = document.getElementById('part_num');
-const inputPartDesc = document.getElementById('part_desc');
-const inputQty = document.getElementById('qty');
-const inputBackordered = document.getElementById('backordered');
-const inputHsCode = document.getElementById('hs_code');
-const inputAmount = document.getElementById('amount');
 const inputCustomerPo = document.getElementById('customer_po');
-const inputLineNum = document.getElementById('line_num');
 const inputDate = document.getElementById('date');
 const inputOrderDate = document.getElementById('order_date');
 const inputWeight = document.getElementById('weight');
@@ -150,8 +142,7 @@ function loadDatabase() {
         })
         .then(res => res.json())
         .then(data => {
-            records = data;
-            filteredRecords = [...records];
+            setRecords(data);
             recordsCount.textContent = `${records.length} records loaded`;
             
             // Deselect selected row if the records changed
@@ -170,6 +161,33 @@ function loadDatabase() {
             console.error("Error loading database:", err);
             recordsCount.textContent = "Error loading database";
         });
+}
+
+// Group records by Customer PO globally
+function groupRecordsByCustomerPo(recordList) {
+    const result = [];
+    const seenPos = new Set();
+    
+    for (const rec of recordList) {
+        const po = (rec.customer_po || '').trim();
+        if (!po) {
+            result.push(rec);
+            continue;
+        }
+        if (seenPos.has(po)) {
+            continue;
+        }
+        // Find all records with this customer_po in the list
+        const group = recordList.filter(r => (r.customer_po || '').trim() === po);
+        result.push(...group);
+        seenPos.add(po);
+    }
+    return result;
+}
+
+function setRecords(data) {
+    records = groupRecordsByCustomerPo(data);
+    filteredRecords = [...records];
 }
 
 // Render data grid rows
@@ -196,7 +214,27 @@ function renderTable() {
         const rec = filteredRecords[i];
         const tr = document.createElement('tr');
         
-        if (selectedRecord && selectedRecord.row_id === rec.row_id) {
+        const po = (rec.customer_po || '').trim();
+        let isChild = false;
+        if (po) {
+            if (i > 0 && (filteredRecords[i - 1].customer_po || '').trim() === po) {
+                isChild = true;
+            }
+        }
+        
+        if (isChild) {
+            tr.classList.add('child-record');
+        }
+        
+        tr.setAttribute('data-po', po);
+        tr.setAttribute('data-row-id', rec.row_id);
+        
+        const isSelected = selectedRecord && (
+            selectedRecord.row_id === rec.row_id || 
+            (po !== '' && (selectedRecord.customer_po || '').trim() === po)
+        );
+        
+        if (isSelected) {
             tr.classList.add('selected');
         }
         
@@ -206,8 +244,10 @@ function renderTable() {
         // Truncate desc for table
         const shortDesc = rec.part_received.length > 35 ? rec.part_received.substring(0, 35) + '...' : rec.part_received;
         
+        const rmsDisplay = isChild ? `↳ ${rec.rms_po || 'N/A'}` : `<strong>${rec.rms_po || 'N/A'}</strong>`;
+        
         tr.innerHTML = `
-            <td><strong>${rec.rms_po || 'N/A'}</strong></td>
+            <td>${rmsDisplay}</td>
             <td>${rec.customer || 'N/A'}</td>
             <td>${rec.customer_po || 'N/A'}</td>
             <td title="${rec.part_received}">${shortDesc}</td>
@@ -300,22 +340,32 @@ function getFormattedToday() {
 function selectRow(record, trElement) {
     selectedRecord = record;
     
-    // Highlight selected row in table
+    // Highlight all rows in the group in the table
+    const po = (record.customer_po || '').trim();
     const rows = tableBody.getElementsByTagName('tr');
     for (let r of rows) {
-        r.classList.remove('selected');
+        const rowPo = r.getAttribute('data-po');
+        if (po && rowPo === po) {
+            r.classList.add('selected');
+        } else if (r.getAttribute('data-row-id') == record.row_id) {
+            r.classList.add('selected');
+        } else {
+            r.classList.remove('selected');
+        }
     }
-    trElement.classList.add('selected');
     
     // Reveal editor panel, hide empty state
     emptyState.classList.add('hidden');
     editorContent.classList.remove('hidden');
     
-    // Populate header info
-    poTitle.textContent = record.rms_po || 'N/A';
+    // Get all records in the group
+    let groupRecords = [record];
+    if (po) {
+        groupRecords = records.filter(r => (r.customer_po || '').trim() === po);
+    }
     
-    // Parse the part text
-    const parsed = parsePartReceived(record.part_received);
+    // Populate header info listing all RMS POs in group
+    poTitle.textContent = groupRecords.map(r => r.rms_po || 'N/A').join(', ');
     
     // Map customer standard address & notes templates
     let customerType = 'DEFAULT';
@@ -326,19 +376,61 @@ function selectRow(record, trElement) {
         customerType = 'JORDS';
     }
     
-    // Fill in Form Inputs
-    inputPartReceived.value = record.part_received;
-    inputPartNum.value = parsed.partNum;
-    inputPartDesc.value = parsed.desc;
-    inputQty.value = parsed.qty;
-    inputBackordered.value = 0;
+    // Dynamically build and render item cards
+    const itemsContainer = document.getElementById('items-container');
+    itemsContainer.innerHTML = '';
     
-    // Pre-fill HS Code and Amount
-    inputHsCode.value = record.hs_code || (customerType === 'JORDS' ? '8481.80.3060' : '3926.90.9985');
-    inputAmount.value = '120.00'; // Default placeholder
+    groupRecords.forEach((item, index) => {
+        const parsed = parsePartReceived(item.part_received);
+        const defaultHs = customerType === 'JORDS' ? '8481.80.3060' : '3926.90.9985';
+        
+        const card = document.createElement('div');
+        card.className = 'item-edit-card';
+        card.innerHTML = `
+            <div class="item-card-header">
+                <h4>Item #${index + 1} — RMS P.O: ${item.rms_po || 'N/A'}</h4>
+                <input type="hidden" class="item-rms-po" value="${item.rms_po || ''}">
+            </div>
+            <div class="form-grid">
+                <div class="form-group span-2">
+                    <label>Raw CSV Description</label>
+                    <input type="text" class="item-part-received input-readonly" value="${item.part_received || ''}" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Line Number</label>
+                    <input type="text" class="item-line-num" value="${item.line_num || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Part Number</label>
+                    <input type="text" class="item-part-num" value="${parsed.partNum}">
+                </div>
+                <div class="form-group span-2">
+                    <label>Description</label>
+                    <input type="text" class="item-part-desc" value="${parsed.desc}">
+                </div>
+                <div class="form-group">
+                    <label>Quantity Received</label>
+                    <input type="number" class="item-qty" min="0" value="${parsed.qty}">
+                </div>
+                <div class="form-group">
+                    <label>Backordered Qty</label>
+                    <input type="number" class="item-backordered" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>HS Code</label>
+                    <input type="text" class="item-hs-code" value="${item.hs_code || defaultHs}">
+                </div>
+                <div class="form-group">
+                    <label>Invoice Amount ($)</label>
+                    <input type="text" class="item-amount" value="120.00">
+                </div>
+            </div>
+        `;
+        itemsContainer.appendChild(card);
+    });
     
+    // Fill in shared Form Inputs
     inputCustomerPo.value = record.customer_po || '';
-    inputLineNum.value = record.line_num || '1';
     inputDate.value = getFormattedToday();
     
     // Pre-fill Order Date (outbound_date if exists, else inbound_date)
@@ -367,7 +459,7 @@ function selectRow(record, trElement) {
     
     // Reset toast and scroll editor card into view
     closeToast();
-    loadGeneratedFiles(); // Clear file list for the new selection
+    loadGeneratedFiles(record); // Clear/Load file list for the new selection
     document.getElementById('editor-card').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -393,17 +485,38 @@ function handleFormSubmit(e) {
         refNum = `${poSuffix}-${rms}`;
     }
     
+    // Read all items from the dynamic cards
+    const items = [];
+    const cards = document.querySelectorAll('.item-edit-card');
+    cards.forEach(card => {
+        items.push({
+            rms_po: card.querySelector('.item-rms-po').value,
+            line_num: card.querySelector('.item-line-num').value,
+            part_received: card.querySelector('.item-part-received').value,
+            part_num: card.querySelector('.item-part-num').value,
+            part_desc: card.querySelector('.item-part-desc').value,
+            description: card.querySelector('.item-part-desc').value, // compatibility
+            qty: card.querySelector('.item-qty').value,
+            backordered: card.querySelector('.item-backordered').value,
+            hs_code: card.querySelector('.item-hs-code').value,
+            amount: card.querySelector('.item-amount').value
+        });
+    });
+    
+    // Top-level compatibility fields (using first item's details if items exist)
+    const firstItem = items[0] || {};
+    
     const requestData = {
         rms_po: selectedRecord.rms_po,
         customer_po: inputCustomerPo.value,
-        part_num: inputPartNum.value,
-        part_desc: inputPartDesc.value,
-        description: inputPartDesc.value, // Compatibility
-        qty: inputQty.value,
-        backordered: inputBackordered.value,
-        hs_code: inputHsCode.value,
-        amount: inputAmount.value,
-        line_num: inputLineNum.value,
+        part_num: firstItem.part_num || '',
+        part_desc: firstItem.part_desc || '',
+        description: firstItem.part_desc || '', // Compatibility
+        qty: firstItem.qty || '0',
+        backordered: firstItem.backordered || '0',
+        hs_code: firstItem.hs_code || '',
+        amount: firstItem.amount || '0.00',
+        line_num: firstItem.line_num || '1',
         date: inputDate.value,
         order_date: inputOrderDate.value,
         weight: inputWeight.value,
@@ -413,7 +526,8 @@ function handleFormSubmit(e) {
         free_replacement_note: inputFreeReplacement.value,
         notes: notesArray,
         ref_num: refNum,
-        tax_id: "36-4426459"
+        tax_id: "36-4426459",
+        items: items
     };
     
     fetch('/api/generate', {
@@ -627,8 +741,7 @@ function handleFileUpload(e) {
                 headerRowInput.value = 1;
             }
             
-            records = data.records;
-            filteredRecords = [...records];
+            setRecords(data.records);
             currentPage = 1;
             recordsCount.textContent = `${records.length} records loaded`;
             
@@ -676,8 +789,7 @@ function handleSheetChange(e) {
     .then(res => res.json())
     .then(data => {
         if (data.success) {
-            records = data.records;
-            filteredRecords = [...records];
+            setRecords(data.records);
             currentPage = 1;
             recordsCount.textContent = `${records.length} records loaded`;
             
@@ -727,8 +839,7 @@ function handleHeaderRowChange() {
     .then(res => res.json())
     .then(data => {
         if (data.success) {
-            records = data.records;
-            filteredRecords = [...records];
+            setRecords(data.records);
             currentPage = 1;
             recordsCount.textContent = `${records.length} records loaded`;
             

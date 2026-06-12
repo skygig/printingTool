@@ -10,7 +10,11 @@ class TestDocumentGeneratorApp(unittest.TestCase):
 
     def test_csv_parsing(self):
         print("Testing CSV database parsing...")
-        records = parse_csv_database()
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        csv_path = os.path.join(base_dir, "Warehouse_Tracking_sheet_1.xlsx_-_Main.csv")
+        if not os.path.exists(csv_path):
+            csv_path = os.path.join(base_dir, "Warehouse Tracking sheet (1).xlsx - Main.csv")
+        records = parse_csv_database(csv_path)
         self.assertIsNotNone(records)
         self.assertTrue(len(records) > 0, "No records found in CSV database.")
         print(f"  Successfully parsed {len(records)} records.")
@@ -78,6 +82,68 @@ class TestDocumentGeneratorApp(unittest.TestCase):
         print(f"    PS: {ps_path}")
         print(f"    CI: {ci_path}")
         print(f"    Label: {label_path}")
+
+    def test_api_generate_endpoint_multiple_items(self):
+        print("Testing /api/generate endpoint with multiple items...")
+        test_payload = {
+            'date': '06/07/2026',
+            'order_date': '05/01/2026',
+            'customer_po': '42300191168-MULTI',
+            'rms_po': '9679',
+            'ref_num': '191168-9679-MULTI',
+            'tax_id': '36-4426459',
+            'weight': '4LBS',
+            'size': '13x11x10',
+            'ship_to_address': 'GE Energy Parts\nAtlanta, GA 30349',
+            'sold_to_address': 'GE Energy Parts\nAtlanta, GA 30349',
+            'notes': ['1. Multi Item test note'],
+            'free_replacement_note': 'Free replacement',
+            'items': [
+                {
+                    'rms_po': '9679',
+                    'line_num': '1',
+                    'part_received': 'QTY 2 PN 1-503-24-065 TEFLON SEAL',
+                    'part_num': '1-503-24-065',
+                    'part_desc': 'TEFLON SEAL',
+                    'qty': '2',
+                    'backordered': '0',
+                    'hs_code': '3926.90.9985',
+                    'amount': '120.00'
+                },
+                {
+                    'rms_po': '9680',
+                    'line_num': '2',
+                    'part_received': 'QTY 3 PN 2-300-11-233 GASKET',
+                    'part_num': '2-300-11-233',
+                    'part_desc': 'GASKET',
+                    'qty': '3',
+                    'backordered': '1',
+                    'hs_code': '3926.90.9985',
+                    'amount': '80.00'
+                }
+            ]
+        }
+        
+        response = self.app.post(
+            '/api/generate',
+            data=json.dumps(test_payload),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data['success'])
+        self.assertIn('files', data)
+        
+        # Verify files are written to disk
+        ps_path = data['files']['printing_slip']['path']
+        ci_path = data['files']['commercial_invoice']['path']
+        label_path = data['files']['part_labels']['path']
+        
+        self.assertTrue(os.path.exists(ps_path), f"Packing slip file not found: {ps_path}")
+        self.assertTrue(os.path.exists(ci_path), f"Commercial Invoice file not found: {ci_path}")
+        self.assertTrue(os.path.exists(label_path), f"Label file not found: {label_path}")
+        
+        print("  All multiple items files generated and written to Outputs successfully.")
 
     def test_database_picker_api(self):
         print("Testing Database Picker and Upload endpoints...")

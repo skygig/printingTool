@@ -312,49 +312,57 @@ def generate_printing_slip(output_path, data):
     story.append(Spacer(1, 20))
     
     # --- MAIN ITEMS TABLE ---
-    # Column Headers: Line, Item, Description, Qty Ordered, Backordered, Ref
+    # Column Headers: Line, Item, Description, Qty Ordered, Backordered
     table_headers = [
         Paragraph("Line", table_header_style),
         Paragraph("Item", table_header_style),
         Paragraph("Description", table_header_style),
         Paragraph("Qty Ordered", table_header_style),
-        Paragraph("Backordered", table_header_style),
-        Paragraph("Ref", table_header_style)
+        Paragraph("Backordered", table_header_style)
     ]
     
     # Values
-    line_no = data.get('line_num', '1')
-    part_no = data.get('part_num', '')
-    desc = data.get('description', '')
-    qty = data.get('qty', '0')
-    backordered = data.get('backordered', '0')
-    ref_num = data.get('ref_num', '') # e.g. "76510-9943"
-    
-    item_row = [
-        Paragraph(line_no, table_cell_center_style),
-        Paragraph(part_no, table_cell_style),
-        Paragraph(desc, table_cell_style),
-        Paragraph(qty, table_cell_center_style),
-        Paragraph(backordered, table_cell_center_style),
-        Paragraph(ref_num, table_cell_style)
-    ]
-    
+    items = data.get('items', [])
+    if not items:
+        items = [{
+            'line_num': data.get('line_num', '1'),
+            'part_num': data.get('part_num', ''),
+            'description': data.get('description', ''),
+            'qty': data.get('qty', '0'),
+            'backordered': data.get('backordered', '0')
+        }]
+        
+    items_table_data = [table_headers]
+    for item in items:
+        line_no = item.get('line_num', '1')
+        part_no = item.get('part_num', '')
+        desc = item.get('part_desc') or item.get('description') or ''
+        qty = item.get('qty', '0')
+        backordered = item.get('backordered', '0')
+        
+        item_row = [
+            Paragraph(str(line_no), table_cell_center_style),
+            Paragraph(str(part_no), table_cell_style),
+            Paragraph(str(desc), table_cell_style),
+            Paragraph(str(qty), table_cell_center_style),
+            Paragraph(str(backordered), table_cell_center_style)
+        ]
+        items_table_data.append(item_row)
+        
     # Spacing row to push grid borders down
-    spacing_row = ["", "", "", "", "", ""]
-    
-    items_table_data = [
-        table_headers,
-        item_row,
-        spacing_row
-    ]
+    spacing_row = ["", "", "", "", ""]
+    items_table_data.append(spacing_row)
     
     # Total printable width is 540 points
-    # Col widths: Line(35), Item(95), Description(220), Qty(60), Backorder(60), Ref(70) = 540
+    # Col widths: Line(35), Item(95), Description(290), Qty(60), Backorder(60) = 540
     # Heights: Header(auto), Data(auto), Spacing(400)
+    spacing_height = max(50, 300 - (len(items) - 1) * 20)
+    row_heights = [None] + [None]*len(items) + [spacing_height]
+    
     items_table = Table(
         items_table_data, 
-        colWidths=[35, 95, 220, 60, 60, 70],
-        rowHeights=[None, None, 400]
+        colWidths=[35, 95, 290, 60, 60],
+        rowHeights=row_heights
     )
     
     items_table.setStyle(TableStyle([
@@ -613,45 +621,78 @@ def generate_commercial_invoice(output_path, data):
         Paragraph("Amount", table_header_style)
     ]
     
-    # Construct Description cells with notes
-    desc_flowables = [Paragraph(data.get('part_desc', ''), table_cell_style)]
-    
-    notes = data.get('notes', [])
-    if notes:
-        desc_flowables.append(Spacer(1, 3))
-        desc_flowables.append(Paragraph("Note:", note_style))
-        for note in notes:
-            desc_flowables.append(Paragraph(note, note_style))
-            
-    free_repl = data.get('free_replacement_note', '')
-    if free_repl:
-        desc_flowables.append(Spacer(1, 3))
-        desc_flowables.append(Paragraph(free_repl, note_style))
+    # Values
+    items = data.get('items', [])
+    if not items:
+        items = [{
+            'part_num': data.get('part_num', ''),
+            'part_desc': data.get('part_desc', ''),
+            'hs_code': data.get('hs_code', ''),
+            'qty': data.get('qty', '0'),
+            'backordered': data.get('backordered', '0'),
+            'amount': data.get('amount', '0.00')
+        }]
         
-    part_no = data.get('part_num', '')
-    hs_code = data.get('hs_code', '')
-    qty_ordered = data.get('qty', '0')
-    qty_backordered = data.get('backordered', '0')
+    main_table_data = [table_headers]
+    total_amount_val = 0.0
     
-    amount_str = data.get('amount', '0.00')
-    if not amount_str.startswith('$') and not amount_str.startswith('US$'):
+    def safe_float(val):
+        if not val:
+            return 0.0
+        val_clean = str(val).replace('$', '').replace('US$', '').replace(',', '').strip()
         try:
-            amount_val = float(amount_str)
-            amount_str = f"{amount_val:,.2f}"
+            return float(val_clean)
         except ValueError:
-            pass
-    
-    item_row = [
-        Paragraph(part_no, table_cell_style),
-        desc_flowables,
-        Paragraph(hs_code, table_cell_center_style),
-        Paragraph(qty_ordered, table_cell_center_style),
-        Paragraph(qty_backordered, table_cell_center_style),
-        Paragraph(amount_str, table_cell_right_style)
-    ]
+            return 0.0
+            
+    for idx, item in enumerate(items):
+        part_no = item.get('part_num', '')
+        part_desc = item.get('part_desc') or item.get('description') or ''
+        hs_code = item.get('hs_code', '')
+        qty_ordered = item.get('qty', '0')
+        qty_backordered = item.get('backordered', '0')
+        amount_str = item.get('amount', '0.00')
+        
+        # Add to total
+        total_amount_val += safe_float(amount_str)
+        
+        if not amount_str.startswith('$') and not amount_str.startswith('US$'):
+            try:
+                amount_val = float(amount_str)
+                amount_str = f"{amount_val:,.2f}"
+            except ValueError:
+                pass
+                
+        # Build description cell flowables
+        desc_flowables = [Paragraph(part_desc, table_cell_style)]
+        
+        # Attach notes to the first item
+        if idx == 0:
+            notes = data.get('notes', [])
+            if notes:
+                desc_flowables.append(Spacer(1, 3))
+                desc_flowables.append(Paragraph("Note:", note_style))
+                for note in notes:
+                    desc_flowables.append(Paragraph(note, note_style))
+                    
+            free_repl = data.get('free_replacement_note', '')
+            if free_repl:
+                desc_flowables.append(Spacer(1, 3))
+                desc_flowables.append(Paragraph(free_repl, note_style))
+                
+        item_row = [
+            Paragraph(part_no, table_cell_style),
+            desc_flowables,
+            Paragraph(hs_code, table_cell_center_style),
+            Paragraph(qty_ordered, table_cell_center_style),
+            Paragraph(qty_backordered, table_cell_center_style),
+            Paragraph(amount_str, table_cell_right_style)
+        ]
+        main_table_data.append(item_row)
     
     # Spacing row (to push vertical grid lines down)
     spacing_row = ["", "", "", "", "", ""]
+    main_table_data.append(spacing_row)
     
     # Construct bottom-left merged cell contents (Declaration + Signature block)
     decl_text = "These commodities were exported from the United States of America in accordance with the Export Administration Regulations. Diversion contrary to U.S. law is prohibited."
@@ -678,7 +719,7 @@ def generate_commercial_invoice(output_path, data):
     ]
     
     # Total Amount right cells
-    total_amount_text = f"US$&nbsp;&nbsp;&nbsp;&nbsp;{amount_str}"
+    total_amount_text = f"US$&nbsp;&nbsp;&nbsp;&nbsp;{total_amount_val:,.2f}"
     
     footer_row_top = [
         bottom_left_flowables, "", "",
@@ -690,37 +731,35 @@ def generate_commercial_invoice(output_path, data):
         Paragraph(total_amount_text, total_val_style), "", ""
     ]
     
-    # Unified main table data
-    main_table_data = [
-        table_headers,
-        item_row,
-        spacing_row,
-        footer_row_top,
-        footer_row_bottom
-    ]
+    main_table_data.append(footer_row_top)
+    main_table_data.append(footer_row_bottom)
     
     # Widths: Item(95), Description(225), HS Code(65), Qty Ord(55), Qty Back(50), Amount(50) = 540
-    # Heights: header(auto), data_row(auto), spacing(220), footer_top(auto), footer_bottom(auto)
+    # Heights: header(auto), data_rows(auto), spacing(220), footer_top(auto), footer_bottom(auto)
+    spacing_height = max(50, 220 - (len(items) - 1) * 20)
+    row_heights = [None] + [None]*len(items) + [spacing_height, None, None]
+    
     main_table = Table(
         main_table_data, 
         colWidths=[95, 225, 65, 55, 50, 50],
-        rowHeights=[None, None, 220, None, None]
+        rowHeights=row_heights
     )
     
+    N = len(items)
     main_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#000000")), # Main solid grid borders
         
-        # Merge bottom-left block (declaration & signature) across columns 0-2 and rows 3-4
-        ('SPAN', (0, 3), (2, 4)),
+        # Merge bottom-left block (declaration & signature) across columns 0-2 and rows N+2 to N+3
+        ('SPAN', (0, N + 2), (2, N + 3)),
         
-        # Merge bottom-right top block (Total label) across columns 3-5 in row 3
-        ('SPAN', (3, 3), (5, 3)),
-        ('VALIGN', (3, 3), (5, 3), 'MIDDLE'),
+        # Merge bottom-right top block (Total label) across columns 3-5 in row N+2
+        ('SPAN', (3, N + 2), (5, N + 2)),
+        ('VALIGN', (3, N + 2), (5, N + 2), 'MIDDLE'),
         
-        # Merge bottom-right bottom block (Total value) across columns 3-5 in row 4
-        ('SPAN', (3, 4), (5, 4)),
-        ('VALIGN', (3, 4), (5, 4), 'MIDDLE'),
+        # Merge bottom-right bottom block (Total value) across columns 3-5 in row N+3
+        ('SPAN', (3, N + 3), (5, N + 3)),
+        ('VALIGN', (3, N + 3), (5, N + 3), 'MIDDLE'),
         
         ('TOPPADDING', (0, 0), (-1, -1), 6),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),

@@ -433,7 +433,8 @@ def generate_documents():
             po_num=po_num,
             part_num=data.get('part_num', ''),
             description=data.get('part_desc', ''),
-            qty=qty
+            qty=qty,
+            items=data.get('items')
         )
         
         return jsonify({

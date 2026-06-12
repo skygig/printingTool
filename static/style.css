@@ -910,3 +910,40 @@ body.light-theme .excel-actions-row {
     border-color: var(--secondary-color);
     box-shadow: 0 0 6px rgba(99, 102, 241, 0.2);
 }
+
+/* Dynamic Item Edit Cards */
+.item-edit-card {
+    background: rgba(15, 23, 42, 0.2);
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+body.light-theme .item-edit-card {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.item-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--card-border);
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+}
+
+.item-card-header h4 {
+    font-size: 14px;
+    color: var(--primary-color);
+}
+
+/* Child Record Indentation in Left Table */
+tr.child-record td:first-child {
+    padding-left: 36px;
+    position: relative;
+}
+

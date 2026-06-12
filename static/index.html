@@ -138,41 +138,8 @@
 
                     <form id="generator-form" class="editor-form">
                         <div class="form-section-title">Item Details</div>
-                        <div class="form-grid">
-                            <div class="form-group span-2">
-                                <label for="part_received">Raw CSV Description</label>
-                                <input type="text" id="part_received" class="input-readonly" readonly>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="part_num">Part Number</label>
-                                <input type="text" id="part_num" placeholder="e.g. 1-503-24-065">
-                            </div>
-
-                            <div class="form-group">
-                                <label for="part_desc">Description</label>
-                                <input type="text" id="part_desc" placeholder="e.g. TEFLON SEAL">
-                            </div>
-
-                            <div class="form-group">
-                                <label for="qty">Quantity Received</label>
-                                <input type="number" id="qty" min="0" placeholder="e.g. 4">
-                            </div>
-
-                            <div class="form-group">
-                                <label for="backordered">Backordered Qty</label>
-                                <input type="number" id="backordered" min="0" value="0">
-                            </div>
-
-                            <div class="form-group">
-                                <label for="hs_code">HS Code</label>
-                                <input type="text" id="hs_code" placeholder="e.g. 3926.90.9985">
-                            </div>
-
-                            <div class="form-group">
-                                <label for="amount">Invoice Amount ($)</label>
-                                <input type="text" id="amount" placeholder="e.g. 120.00">
-                            </div>
+                        <div id="items-container">
+                            <!-- Dynamic item edit cards will be generated here -->
                         </div>
 
                         <div class="form-section-title">Shipping & Order Metadata</div>
