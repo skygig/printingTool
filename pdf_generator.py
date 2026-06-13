@@ -52,6 +52,17 @@ def get_image_path(filename):
     return None
 
 
+def clean_date(date_val):
+    if not date_val:
+        return ""
+    date_str = str(date_val).strip()
+    if " " in date_str:
+        date_str = date_str.split(" ")[0]
+    if "T" in date_str:
+        date_str = date_str.split("T")[0]
+    return date_str
+
+
 def generate_printing_slip(output_path, data):
     """
     Generates a Printing/Packing Slip PDF that matches the exact visual grid format
@@ -70,6 +81,9 @@ def generate_printing_slip(output_path, data):
     )
     
     styles = getSampleStyleSheet()
+    
+    date_val = clean_date(data.get('date', ''))
+    order_date_val = clean_date(data.get('order_date', ''))
     
     # Custom styles
     title_style = ParagraphStyle(
@@ -131,8 +145,8 @@ def generate_printing_slip(output_path, data):
         'PSTableHeader',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=9,
-        leading=11,
+        fontSize=8.5,
+        leading=10,
         textColor=colors.HexColor("#000000"),
         alignment=1 # Centered
     )
@@ -179,7 +193,7 @@ def generate_printing_slip(output_path, data):
     
     # Date sub-table
     date_data = [
-        [Paragraph("Date", meta_header_style), Paragraph(data.get('date', ''), meta_value_style)]
+        [Paragraph("Date", meta_header_style), Paragraph(date_val, meta_value_style)]
     ]
     date_table = Table(date_data, colWidths=[60, 90])
     date_table.setStyle(TableStyle([
@@ -262,7 +276,7 @@ def generate_printing_slip(output_path, data):
     # --- THREE METADATA TABLES (Order Date, S.O. No, P.O. No) ---
     # 1. Order Date Table
     order_date_data = [
-        [Paragraph("Order Date", meta_header_style), Paragraph(data.get('order_date', ''), meta_value_style)]
+        [Paragraph("Order Date", meta_header_style), Paragraph(order_date_val, meta_value_style)]
     ]
     order_date_table = Table(order_date_data, colWidths=[65, 65])
     order_date_table.setStyle(TableStyle([
@@ -312,13 +326,14 @@ def generate_printing_slip(output_path, data):
     story.append(Spacer(1, 20))
     
     # --- MAIN ITEMS TABLE ---
-    # Column Headers: Line, Item, Description, Qty Ordered, Backordered
+    # Column Headers: Line, Item, Description, Qty Ordered, Backordered, Ref
     table_headers = [
         Paragraph("Line", table_header_style),
         Paragraph("Item", table_header_style),
         Paragraph("Description", table_header_style),
         Paragraph("Qty Ordered", table_header_style),
-        Paragraph("Backordered", table_header_style)
+        Paragraph("Backordered", table_header_style),
+        Paragraph("Ref", table_header_style)
     ]
     
     # Values
@@ -339,39 +354,42 @@ def generate_printing_slip(output_path, data):
         desc = item.get('part_desc') or item.get('description') or ''
         qty = item.get('qty', '0')
         backordered = item.get('backordered', '0')
+        ref_num = data.get('ref_num', '')
         
         item_row = [
             Paragraph(str(line_no), table_cell_center_style),
             Paragraph(str(part_no), table_cell_style),
             Paragraph(str(desc), table_cell_style),
             Paragraph(str(qty), table_cell_center_style),
-            Paragraph(str(backordered), table_cell_center_style)
+            Paragraph(str(backordered), table_cell_center_style),
+            Paragraph(str(ref_num), table_cell_center_style)
         ]
         items_table_data.append(item_row)
         
     # Spacing row to push grid borders down
-    spacing_row = ["", "", "", "", ""]
+    spacing_row = ["", "", "", "", "", ""]
     items_table_data.append(spacing_row)
     
     # Total printable width is 540 points
-    # Col widths: Line(35), Item(95), Description(290), Qty(60), Backorder(60) = 540
+    # Col widths: Line(35), Item(85), Description(210), Qty(65), Backorder(65), Ref(80) = 540
     # Heights: Header(auto), Data(auto), Spacing(400)
     spacing_height = max(50, 300 - (len(items) - 1) * 20)
     row_heights = [None] + [None]*len(items) + [spacing_height]
     
     items_table = Table(
         items_table_data, 
-        colWidths=[35, 95, 290, 60, 60],
+        colWidths=[35, 80, 195, 70, 80, 80],
         rowHeights=row_heights
     )
     
     items_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#000000")), # Main solid grid borders
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#EAEAEA")), # Light gray background for headers
         ('TOPPADDING', (0, 0), (-1, -1), 6),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
     ]))
     
     story.append(items_table)
@@ -399,6 +417,8 @@ def generate_commercial_invoice(output_path, data):
     )
     
     styles = getSampleStyleSheet()
+    
+    date_val = clean_date(data.get('date', ''))
     
     # Custom styles
     title_style = ParagraphStyle(
@@ -460,8 +480,8 @@ def generate_commercial_invoice(output_path, data):
         'CITableHeader',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=9,
-        leading=11,
+        fontSize=8.5,
+        leading=10,
         textColor=colors.HexColor("#000000"),
         alignment=1 # Centered
     )
@@ -589,7 +609,7 @@ def generate_commercial_invoice(output_path, data):
     # --- METADATA TABLE (Size, Weight, PO, Date) ALIGNED TO THE RIGHT ---
     meta_data = [
         [Paragraph("Size in Inches", meta_header_style), Paragraph("Weight in Lbs.", meta_header_style), Paragraph("P.O. No.", meta_header_style), Paragraph("Date", meta_header_style)],
-        [Paragraph(data.get('size', ''), meta_value_style), Paragraph(data.get('weight', ''), meta_value_style), Paragraph(data.get('customer_po', ''), meta_value_style), Paragraph(data.get('date', ''), meta_value_style)]
+        [Paragraph(data.get('size', ''), meta_value_style), Paragraph(data.get('weight', ''), meta_value_style), Paragraph(data.get('customer_po', ''), meta_value_style), Paragraph(date_val, meta_value_style)]
     ]
     meta_table = Table(meta_data, colWidths=[80, 80, 85, 80])
     meta_table.setStyle(TableStyle([
@@ -734,14 +754,14 @@ def generate_commercial_invoice(output_path, data):
     main_table_data.append(footer_row_top)
     main_table_data.append(footer_row_bottom)
     
-    # Widths: Item(95), Description(225), HS Code(65), Qty Ord(55), Qty Back(50), Amount(50) = 540
+    # Widths: Item(85), Description(205), HS Code(60), Qty Ord(60), Qty Back(80), Amount(50) = 540
     # Heights: header(auto), data_rows(auto), spacing(220), footer_top(auto), footer_bottom(auto)
     spacing_height = max(50, 220 - (len(items) - 1) * 20)
     row_heights = [None] + [None]*len(items) + [spacing_height, None, None]
     
     main_table = Table(
         main_table_data, 
-        colWidths=[95, 225, 65, 55, 50, 50],
+        colWidths=[80, 175, 60, 70, 100, 55],
         rowHeights=row_heights
     )
     
@@ -749,6 +769,7 @@ def generate_commercial_invoice(output_path, data):
     main_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#000000")), # Main solid grid borders
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#EAEAEA")), # Light gray background for headers
         
         # Merge bottom-left block (declaration & signature) across columns 0-2 and rows N+2 to N+3
         ('SPAN', (0, N + 2), (2, N + 3)),
@@ -763,8 +784,8 @@ def generate_commercial_invoice(output_path, data):
         
         ('TOPPADDING', (0, 0), (-1, -1), 6),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
     ]))
     
     story.append(main_table)

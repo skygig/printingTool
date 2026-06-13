@@ -402,17 +402,17 @@ function selectRow(record, trElement) {
         card.className = 'item-edit-card';
         card.innerHTML = `
             <div class="item-card-header">
-                <h4>Item #${index + 1} — RMS P.O: ${item.rms_po || 'N/A'}</h4>
+                <h4>Line #${index + 1} — RMS P.O: ${item.rms_po || 'N/A'}</h4>
                 <input type="hidden" class="item-rms-po" value="${item.rms_po || ''}">
             </div>
             <div class="form-grid">
                 <div class="form-group span-2">
-                    <label>Raw CSV Description</label>
+                    <label>Item Description</label>
                     <input type="text" class="item-part-received input-readonly" value="${item.part_received || ''}" readonly>
                 </div>
                 <div class="form-group">
                     <label>Line Number</label>
-                    <input type="text" class="item-line-num" value="${item.line_num || ''}">
+                    <input type="text" class="item-line-num" value="${index + 1}">
                 </div>
                 <div class="form-group">
                     <label>Part Number</label>
@@ -454,7 +454,7 @@ function selectRow(record, trElement) {
     // Fill in shared Form Inputs
     inputCustomerPo.value = record.customer_po || '';
     if (inputLineNum) {
-        inputLineNum.value = record.line_num || '';
+        inputLineNum.value = '1';
     }
     inputDate.value = getFormattedToday();
     
