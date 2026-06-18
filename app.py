@@ -390,6 +390,124 @@ def load_sheet():
     })
 
 
+@app.route('/api/save-order', methods=['POST'])
+def save_order():
+    global CURRENT_DB_PATH, CURRENT_SHEET, CURRENT_HEADER_ROW
+    data = request.json
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+        
+    if not CURRENT_DB_PATH or not os.path.exists(CURRENT_DB_PATH):
+        return jsonify({'error': 'No active database file loaded.'}), 400
+        
+    # Ensure 34 columns in the exact order as defined
+    row_data = [
+        data.get('inbound_date', '').strip(),
+        data.get('rms_po', '').strip(),
+        data.get('part_received', '').strip(),
+        data.get('vendor', '').strip(),
+        data.get('promise_date', '').strip(),
+        data.get('inbound_notes', '').strip(),
+        data.get('vendor_contact', '').strip(),
+        data.get('received_date', '').strip(),
+        data.get('inbound_carrier', '').strip(),
+        data.get('inbound_tracking', '').strip(),
+        data.get('inbound_l', '').strip(),
+        data.get('inbound_w', '').strip(),
+        data.get('inbound_h', '').strip(),
+        data.get('inbound_weight', '').strip(),
+        data.get('inbound_charges', '').strip(),
+        data.get('outbound_date', '').strip(),
+        data.get('customer', '').strip(),
+        data.get('customer_po', '').strip(),
+        data.get('rms_invoice', '').strip(),
+        data.get('ship_to', '').strip(),
+        data.get('line_num', '').strip(),
+        data.get('hs_code', '').strip(),
+        data.get('shipped_date', '').strip(),
+        data.get('invoice_status', '').strip(),
+        data.get('outbound_l', '').strip(),
+        data.get('outbound_w', '').strip(),
+        data.get('outbound_h', '').strip(),
+        data.get('outbound_weight', '').strip(),
+        data.get('outbound_carrier', '').strip(),
+        data.get('outbound_tracking', '').strip(),
+        data.get('crating_charges', '').strip(),
+        data.get('shipping_charges', '').strip(),
+        data.get('customer_contact', '').strip(),
+        data.get('outbound_notes', '').strip(),
+    ]
+    
+    ext = os.path.splitext(CURRENT_DB_PATH)[1].lower()
+    try:
+        if ext == '.csv':
+            # Check if file has a trailing newline
+            with open(CURRENT_DB_PATH, 'rb+') as f:
+                f.seek(0, os.SEEK_END)
+                size = f.tell()
+                if size > 0:
+                    f.seek(size - 1)
+                    last_char = f.read(1)
+                    if last_char != b'\n' and last_char != b'\r':
+                        f.write(b'\n')
+                        
+            with open(CURRENT_DB_PATH, mode='a', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(row_data)
+                
+        elif ext in ['.xlsx', '.xls']:
+            wb = openpyxl.load_workbook(CURRENT_DB_PATH)
+            if not CURRENT_SHEET or CURRENT_SHEET not in wb.sheetnames:
+                sheet = wb.active
+            else:
+                sheet = wb[CURRENT_SHEET]
+                
+            # Helper to clean/cast values for Excel
+            def cast_val(val):
+                val_str = str(val).strip()
+                if val_str == "":
+                    return None
+                try:
+                    if val_str.isdigit():
+                        return int(val_str)
+                    float_val = float(val_str)
+                    if float_val.is_integer():
+                        return int(float_val)
+                    return float_val
+                except ValueError:
+                    return val_str
+                    
+            # Find the actual last content row
+            max_r = sheet.max_row
+            last_content_row = 1
+            for r in range(max_r, 0, -1):
+                has_content = False
+                for c in range(1, 35):
+                    val = sheet.cell(row=r, column=c).value
+                    if val is not None and str(val).strip() != "":
+                        has_content = True
+                        break
+                if has_content:
+                    last_content_row = r
+                    break
+                    
+            next_row = last_content_row + 1
+            for col_idx, val in enumerate(row_data, 1):
+                sheet.cell(row=next_row, column=col_idx, value=cast_val(val))
+                
+            wb.save(CURRENT_DB_PATH)
+            wb.close()
+            
+        else:
+            return jsonify({'error': 'Unsupported file format for saving.'}), 400
+            
+        return jsonify({'success': True, 'message': 'Order saved successfully!'})
+        
+    except Exception as e:
+        print(f"Error saving order: {e}")
+        return jsonify({'error': f"Failed to save order: {str(e)}"}), 500
+
+
 @app.route('/api/generate', methods=['POST'])
 def generate_documents():
     data = request.json

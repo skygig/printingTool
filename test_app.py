@@ -315,6 +315,105 @@ class TestDocumentGeneratorApp(unittest.TestCase):
         if os.path.exists(config_path):
             os.remove(config_path)
 
+    def test_save_order_endpoint(self):
+        print("Testing /api/save-order endpoint...")
+        # Test 1: Save order to a mock CSV
+        import io
+        import csv
+        import openpyxl
+        
+        # Prepare mock database
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        mock_csv_path = os.path.join(base_dir, "test_mock_save.csv")
+        
+        headers = [
+            "Date", "RMS P.O", "Part Received", "Vendor", "Promise date", "Notes", "Vendor Contact", 
+            "Recieved Date", "Carrier", "Trackin/Pro#", "L", "W", "H", "Weight", "Inbound Shipping Charges", 
+            "Date", "Customer", "Customer P.O", "RMS Invoice #", "Ship To", "Line #", "HS code", 
+            "Shipped", "Invoice Status", "L", "W", "H", "Weight", "Carrier", "Tracking/ Pro#", 
+            "Crating/ Handling charges", "Ship out Charges", "Customer contact", "Notes"
+        ]
+        
+        with open(mock_csv_path, mode='w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(headers)
+            
+        # Set app global active DB
+        import app as app_module
+        old_db_path = app_module.CURRENT_DB_PATH
+        old_db_name = app_module.CURRENT_DB_NAME
+        app_module.CURRENT_DB_PATH = mock_csv_path
+        app_module.CURRENT_DB_NAME = "test_mock_save.csv"
+        
+        # Call save-order endpoint
+        test_payload = {
+            'inbound_date': '06/07/2026',
+            'rms_po': '1111',
+            'part_received': 'QTY 2 PN PN-TEST PART',
+            'vendor': 'VEND_TEST',
+            'customer': 'CUST_TEST',
+            'customer_po': 'PO-TEST',
+            'invoice_status': 'Pending'
+        }
+        
+        response = self.app.post(
+            '/api/save-order',
+            data=json.dumps(test_payload),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        res_data = json.loads(response.data)
+        self.assertTrue(res_data['success'])
+        
+        # Verify the CSV row was written
+        records = parse_csv_database(mock_csv_path)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]['rms_po'], '1111')
+        self.assertEqual(records[0]['customer_po'], 'PO-TEST')
+        
+        # Test 2: Save order to a mock Excel sheet
+        mock_xlsx_path = os.path.join(base_dir, "test_mock_save.xlsx")
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "MainSheet"
+        ws.append(headers)
+        wb.save(mock_xlsx_path)
+        wb.close()
+        
+        app_module.CURRENT_DB_PATH = mock_xlsx_path
+        app_module.CURRENT_DB_NAME = "test_mock_save.xlsx"
+        app_module.CURRENT_SHEET = "MainSheet"
+        app_module.CURRENT_HEADER_ROW = 1
+        
+        response = self.app.post(
+            '/api/save-order',
+            data=json.dumps(test_payload),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        res_data = json.loads(response.data)
+        self.assertTrue(res_data['success'])
+        
+        # Verify Excel sheet records
+        records_xlsx = app_module.parse_excel_database(mock_xlsx_path, "MainSheet", 1)
+        self.assertEqual(len(records_xlsx), 1)
+        self.assertEqual(records_xlsx[0]['rms_po'], '1111')
+        self.assertEqual(records_xlsx[0]['customer_po'], 'PO-TEST')
+        
+        # Restore old globals
+        app_module.CURRENT_DB_PATH = old_db_path
+        app_module.CURRENT_DB_NAME = old_db_name
+        app_module.CURRENT_SHEET = None
+        app_module.CURRENT_HEADER_ROW = 1
+        
+        # Clean up files
+        if os.path.exists(mock_csv_path):
+            os.remove(mock_csv_path)
+        if os.path.exists(mock_xlsx_path):
+            os.remove(mock_xlsx_path)
+            
+        print("  /api/save-order endpoints tests verified successfully for both CSV and XLSX!")
+
 if __name__ == '__main__':
     unittest.main()
 

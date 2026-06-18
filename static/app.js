@@ -121,6 +121,42 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // Page Switching (Dashboard & Order Entry Tabs)
+    const tabDashboard = document.getElementById('tab-dashboard');
+    const tabOrderEntry = document.getElementById('tab-order-entry');
+    const pageDashboard = document.getElementById('dashboard-page');
+    const pageOrderEntry = document.getElementById('order-entry-page');
+    const orderEntryForm = document.getElementById('order-entry-form');
+
+    if (tabDashboard && tabOrderEntry && pageDashboard && pageOrderEntry) {
+        tabDashboard.addEventListener('click', () => {
+            tabDashboard.classList.add('active');
+            tabOrderEntry.classList.remove('active');
+            pageDashboard.classList.remove('hidden');
+            pageOrderEntry.classList.add('hidden');
+        });
+
+        tabOrderEntry.addEventListener('click', () => {
+            tabOrderEntry.classList.add('active');
+            tabDashboard.classList.remove('active');
+            pageOrderEntry.classList.remove('hidden');
+            pageDashboard.classList.add('hidden');
+            prefillOrderEntryDefaults();
+        });
+    }
+
+    if (orderEntryForm) {
+        orderEntryForm.addEventListener('submit', handleOrderEntrySubmit);
+    }
+
+    const btnCancelOrder = document.getElementById('btn-cancel-order');
+    if (btnCancelOrder && orderEntryForm && tabDashboard) {
+        btnCancelOrder.addEventListener('click', () => {
+            orderEntryForm.reset();
+            tabDashboard.click();
+        });
+    }
 });
 
 // Fetch CSV/Excel Data from API
@@ -439,6 +475,10 @@ function selectRow(record, trElement) {
                     <input type="text" class="item-amount" value="120.00">
                 </div>
             </div>
+            <div class="item-acceptance-row" style="margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--card-border); display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" class="item-accepted-checkbox" id="accept-item-${index}" style="width: auto; height: auto; cursor: pointer;">
+                <label for="accept-item-${index}" style="font-size: 12px; font-weight: 600; cursor: pointer; color: var(--text-primary); margin: 0;">Accepted</label>
+            </div>
         `;
         itemsContainer.appendChild(card);
 
@@ -492,6 +532,21 @@ function selectRow(record, trElement) {
 function handleFormSubmit(e) {
     e.preventDefault();
     if (!selectedRecord) return;
+    
+    // Verify item acceptance
+    const checkboxes = document.querySelectorAll('.item-accepted-checkbox');
+    let allAccepted = true;
+    checkboxes.forEach(cb => {
+        if (!cb.checked) {
+            allAccepted = false;
+        }
+    });
+    
+    if (!allAccepted) {
+        showToast("Acceptance Required", "Please accept these items to generate documents.", null, true);
+        alert("Please accept these items to generate documents.");
+        return;
+    }
     
     // Lock button state
     btnGenerate.disabled = true;
@@ -887,5 +942,145 @@ function handleHeaderRowChange() {
         console.error("Header row change error:", err);
         showToast("Server Error", "An error occurred while changing the header row.", null, true);
         loadDatabase(); // Restore state
+    });
+}
+
+// Order Entry Helper & Handlers
+function prefillOrderEntryDefaults() {
+    const inboundDateInput = document.getElementById('oe-inbound-date');
+    const outboundDateInput = document.getElementById('oe-outbound-date');
+    const statusSelect = document.getElementById('oe-invoice-status');
+    const lineNumInput = document.getElementById('oe-line-num');
+
+    if (inboundDateInput && !inboundDateInput.value) {
+        inboundDateInput.value = getFormattedToday();
+    }
+    if (outboundDateInput && !outboundDateInput.value) {
+        outboundDateInput.value = getFormattedToday();
+    }
+    if (statusSelect) {
+        statusSelect.value = 'Pending';
+    }
+    if (lineNumInput) {
+        lineNumInput.value = '1';
+    }
+}
+
+function handleOrderEntrySubmit(e) {
+    e.preventDefault();
+    
+    const form = e.target;
+    const saveBtn = document.getElementById('btn-save-order');
+    const originalText = saveBtn.innerHTML;
+    
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = `<span class="btn-icon">⏳</span> Saving...`;
+    
+    // Collect all 34 fields
+    const orderData = {
+        inbound_date: document.getElementById('oe-inbound-date').value,
+        rms_po: document.getElementById('oe-rms-po').value,
+        part_received: document.getElementById('oe-part-received').value,
+        vendor: document.getElementById('oe-vendor').value,
+        promise_date: document.getElementById('oe-promise-date').value,
+        inbound_notes: document.getElementById('oe-inbound-notes').value,
+        vendor_contact: document.getElementById('oe-vendor-contact').value,
+        received_date: document.getElementById('oe-received-date').value,
+        inbound_carrier: document.getElementById('oe-inbound-carrier').value,
+        inbound_tracking: document.getElementById('oe-inbound-tracking').value,
+        inbound_l: document.getElementById('oe-inbound-l').value,
+        inbound_w: document.getElementById('oe-inbound-w').value,
+        inbound_h: document.getElementById('oe-inbound-h').value,
+        inbound_weight: document.getElementById('oe-inbound-weight').value,
+        inbound_charges: document.getElementById('oe-inbound-charges').value,
+        outbound_date: document.getElementById('oe-outbound-date').value,
+        customer: document.getElementById('oe-customer').value,
+        customer_po: document.getElementById('oe-customer-po').value,
+        rms_invoice: document.getElementById('oe-rms-invoice').value,
+        ship_to: document.getElementById('oe-ship-to').value,
+        line_num: document.getElementById('oe-line-num').value,
+        hs_code: document.getElementById('oe-hs-code').value,
+        shipped_date: document.getElementById('oe-shipped-date').value,
+        invoice_status: document.getElementById('oe-invoice-status').value,
+        outbound_l: document.getElementById('oe-outbound-l').value,
+        outbound_w: document.getElementById('oe-outbound-w').value,
+        outbound_h: document.getElementById('oe-outbound-h').value,
+        outbound_weight: document.getElementById('oe-outbound-weight').value,
+        outbound_carrier: document.getElementById('oe-outbound-carrier').value,
+        outbound_tracking: document.getElementById('oe-outbound-tracking').value,
+        crating_charges: document.getElementById('oe-crating-charges').value,
+        shipping_charges: document.getElementById('oe-shipping-charges').value,
+        customer_contact: document.getElementById('oe-customer-contact').value,
+        outbound_notes: document.getElementById('oe-outbound-notes').value,
+    };
+    
+    fetch('/api/save-order', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(orderData)
+    })
+    .then(res => res.json())
+    .then(data => {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+        
+        if (data.success) {
+            showToast("Order Saved", "New order added to the database successfully!", null, false);
+            form.reset();
+            
+            // Reload the database records
+            fetch('/api/records')
+                .then(res => res.json())
+                .then(recordsList => {
+                    setRecords(recordsList);
+                    recordsCount.textContent = `${records.length} records loaded`;
+                    renderTable();
+                    
+                    // Switch back to Dashboard page
+                    const tabDashboard = document.getElementById('tab-dashboard');
+                    if (tabDashboard) tabDashboard.click();
+                    
+                    // Find and select the newly added row
+                    const newRmsPo = orderData.rms_po.trim();
+                    const newCustPo = orderData.customer_po.trim();
+                    
+                    const matchedRecord = records.find(r => 
+                        (r.rms_po || '').trim() === newRmsPo && 
+                        (r.customer_po || '').trim() === newCustPo
+                    );
+                    
+                    if (matchedRecord) {
+                        const itemIndex = filteredRecords.findIndex(r => r.row_id === matchedRecord.row_id);
+                        if (itemIndex !== -1) {
+                            currentPage = Math.floor(itemIndex / rowsPerPage) + 1;
+                            renderTable();
+                            
+                            // Select row in table after DOM update
+                            setTimeout(() => {
+                                const trs = document.querySelectorAll('#table-body tr');
+                                for (let tr of trs) {
+                                    if (tr.getAttribute('data-row-id') == matchedRecord.row_id) {
+                                        tr.click();
+                                        break;
+                                    }
+                                }
+                            }, 100);
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.error("Error reloading database:", err);
+                });
+        } else {
+            showToast("Save Error", data.error || "Failed to save order", null, true);
+        }
+    })
+    .catch(err => {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+        showToast("Server Error", "An error occurred on the server.", null, true);
+        console.error("Save Error:", err);
     });
 }

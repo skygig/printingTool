@@ -35,8 +35,18 @@
             </div>
         </header>
 
+        <!-- Page Switcher Tabs -->
+        <div class="page-tabs-container">
+            <button id="tab-dashboard" class="page-tab active">
+                <span class="tab-icon">📊</span> Dashboard
+            </button>
+            <button id="tab-order-entry" class="page-tab">
+                <span class="tab-icon">➕</span> Order Entry
+            </button>
+        </div>
+
         <!-- Main Dashboard Layout -->
-        <main class="dashboard-layout">
+        <main id="dashboard-page" class="dashboard-layout">
             <!-- Left Side Column Container -->
             <div class="dashboard-left-col">
                 <!-- Left Side: Table & Search -->
@@ -209,6 +219,195 @@
                         </div>
                     </form>
                 </div>
+            </section>
+        </main>
+
+        <!-- Order Entry Layout -->
+        <main id="order-entry-page" class="order-entry-layout hidden">
+            <section class="order-entry-section card">
+                <div class="card-header">
+                    <h2>New Order Entry</h2>
+                    <p class="section-desc">Fill out the details below to add a new record to the loaded database.</p>
+                </div>
+                
+                <form id="order-entry-form" class="order-form">
+                    <!-- Section 1: Inbound & Vendor Details -->
+                    <div class="form-group span-full">
+                        <h3 class="form-section-title">1. Inbound & Vendor Details</h3>
+                    </div>
+                    <div class="form-grid-4">
+                        <div class="form-group">
+                            <label for="oe-rms-po">RMS P.O. *</label>
+                            <input type="text" id="oe-rms-po" placeholder="e.g. 9679" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-inbound-date">Inbound Date</label>
+                            <input type="text" id="oe-inbound-date" placeholder="e.g. 05/19/2026">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-vendor">Vendor</label>
+                            <input type="text" id="oe-vendor" placeholder="e.g. GEXPRO">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-vendor-contact">Vendor Contact</label>
+                            <input type="text" id="oe-vendor-contact" placeholder="e.g. contact@vendor.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-promise-date">Promise Date</label>
+                            <input type="text" id="oe-promise-date" placeholder="e.g. 06/01/2026">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-received-date">Received Date</label>
+                            <input type="text" id="oe-received-date" placeholder="e.g. 05/20/2026">
+                        </div>
+                        <div class="form-group span-2">
+                            <label for="oe-part-received">Part Received/QTY/PN *</label>
+                            <input type="text" id="oe-part-received" placeholder="e.g. QTY 4 PN 1-503-24-065 TEFLON SEAL" required>
+                        </div>
+                        <div class="form-group span-4">
+                            <label for="oe-inbound-notes">Inbound Notes</label>
+                            <textarea id="oe-inbound-notes" rows="2" placeholder="Any inbound notes..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Inbound Shipping & Package Details -->
+                    <div class="form-group span-full">
+                        <h3 class="form-section-title">2. Inbound Shipping & Package Details</h3>
+                    </div>
+                    <div class="form-grid-4">
+                        <div class="form-group">
+                            <label for="oe-inbound-carrier">Inbound Carrier</label>
+                            <input type="text" id="oe-inbound-carrier" placeholder="e.g. UPS">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-inbound-tracking">Inbound Tracking / Pro #</label>
+                            <input type="text" id="oe-inbound-tracking" placeholder="e.g. 1Z0XW10...">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-inbound-weight">Inbound Weight</label>
+                            <input type="text" id="oe-inbound-weight" placeholder="e.g. 2 LBS">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-inbound-charges">Inbound Shipping Charges</label>
+                            <input type="text" id="oe-inbound-charges" placeholder="e.g. 45.00">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-inbound-l">Inbound L (in.)</label>
+                            <input type="text" id="oe-inbound-l" placeholder="e.g. 8">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-inbound-w">Inbound W (in.)</label>
+                            <input type="text" id="oe-inbound-w" placeholder="e.g. 8">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-inbound-h">Inbound H (in.)</label>
+                            <input type="text" id="oe-inbound-h" placeholder="e.g. 8">
+                        </div>
+                    </div>
+
+                    <!-- Section 3: Customer & Outbound Details -->
+                    <div class="form-group span-full">
+                        <h3 class="form-section-title">3. Customer & Outbound Details</h3>
+                    </div>
+                    <div class="form-grid-4">
+                        <div class="form-group">
+                            <label for="oe-customer">Customer</label>
+                            <input type="text" id="oe-customer" placeholder="e.g. GE">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-customer-po">Customer P.O. *</label>
+                            <input type="text" id="oe-customer-po" placeholder="e.g. 42300276510" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-rms-invoice">RMS Invoice #</label>
+                            <input type="text" id="oe-rms-invoice" placeholder="e.g. INV-1002">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-line-num">Line #</label>
+                            <input type="text" id="oe-line-num" value="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-hs-code">HS Code</label>
+                            <input type="text" id="oe-hs-code" placeholder="e.g. 3926.90.9985">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-outbound-date">Outbound Date</label>
+                            <input type="text" id="oe-outbound-date" placeholder="e.g. 05/19/2026">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-shipped-date">Shipped Date</label>
+                            <input type="text" id="oe-shipped-date" placeholder="e.g. 05/20/2026">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-invoice-status">Invoice Status</label>
+                            <select id="oe-invoice-status">
+                                <option value="Pending" selected>Pending</option>
+                                <option value="Invoiced">Invoiced</option>
+                                <option value="Delivered">Delivered</option>
+                                <option value="Cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                        <div class="form-group span-2">
+                            <label for="oe-customer-contact">Customer Contact</label>
+                            <input type="text" id="oe-customer-contact" placeholder="e.g. buyer@customer.com">
+                        </div>
+                        <div class="form-group span-2">
+                            <label for="oe-ship-to">Ship To Address</label>
+                            <textarea id="oe-ship-to" rows="2" placeholder="Full shipping address..."></textarea>
+                        </div>
+                        <div class="form-group span-4">
+                            <label for="oe-outbound-notes">Outbound Notes</label>
+                            <textarea id="oe-outbound-notes" rows="2" placeholder="Any outbound notes..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Section 4: Outbound Shipping & Package Details -->
+                    <div class="form-group span-full">
+                        <h3 class="form-section-title">4. Outbound Shipping & Package Details</h3>
+                    </div>
+                    <div class="form-grid-4">
+                        <div class="form-group">
+                            <label for="oe-outbound-carrier">Outbound Carrier</label>
+                            <input type="text" id="oe-outbound-carrier" placeholder="e.g. Fedex">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-outbound-tracking">Outbound Tracking / Pro #</label>
+                            <input type="text" id="oe-outbound-tracking" placeholder="e.g. 77347776...">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-outbound-weight">Outbound Weight</label>
+                            <input type="text" id="oe-outbound-weight" placeholder="e.g. 2LBS">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-crating-charges">Crating / Handling Charges</label>
+                            <input type="text" id="oe-crating-charges" placeholder="e.g. 10.00">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-shipping-charges">Ship Out Charges</label>
+                            <input type="text" id="oe-shipping-charges" placeholder="e.g. 15.00">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-outbound-l">Outbound L (in.)</label>
+                            <input type="text" id="oe-outbound-l" placeholder="e.g. 8">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-outbound-w">Outbound W (in.)</label>
+                            <input type="text" id="oe-outbound-w" placeholder="e.g. 8">
+                        </div>
+                        <div class="form-group">
+                            <label for="oe-outbound-h">Outbound H (in.)</label>
+                            <input type="text" id="oe-outbound-h" placeholder="e.g. 8">
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="form-actions span-full">
+                        <button type="button" class="btn btn-secondary" id="btn-cancel-order">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="btn-save-order" style="width: auto; min-width: 200px;">
+                            <span class="btn-icon">💾</span> Save Order
+                        </button>
+                    </div>
+                </form>
             </section>
         </main>
     </div>
