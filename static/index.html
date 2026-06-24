@@ -38,7 +38,10 @@
         <!-- Page Switcher Tabs -->
         <div class="page-tabs-container">
             <button id="tab-dashboard" class="page-tab active">
-                <span class="tab-icon">📊</span> Dashboard
+                <span class="tab-icon">🚢</span> Shipping
+            </button>
+            <button id="tab-receiving" class="page-tab">
+                <span class="tab-icon">📥</span> Receiving
             </button>
             <button id="tab-order-entry" class="page-tab">
                 <span class="tab-icon">➕</span> Order Entry
@@ -215,6 +218,185 @@
                         <div class="action-buttons">
                             <button type="submit" class="btn btn-primary" id="btn-generate">
                                 <span class="btn-icon">⚡</span> Generate All 3 Documents
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </main>
+
+        <!-- Receiving Layout -->
+        <main id="receiving-page" class="dashboard-layout hidden">
+            <!-- Left Side Column Container -->
+            <div class="dashboard-left-col">
+                <!-- Left Side: Table & Search -->
+                <section class="records-section card">
+                    <div class="card-header">
+                        <h2>Receiving Inventory</h2>
+                        <div class="search-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="receiving-search-input" placeholder="Search by PO, RMS P.O, Part, Customer, Date...">
+                        </div>
+                    </div>
+
+                    <!-- Database Control Info -->
+                    <div class="db-control-bar">
+                        <div class="db-main-row">
+                            <div class="db-info">
+                                <span class="db-icon">📊</span>
+                                <span id="receiving-db-filename" class="db-filename">Loading database file...</span>
+                            </div>
+                            <div class="db-actions" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                                <span id="receiving-selected-count" style="font-size: 13px; font-weight: 600; color: var(--primary-color); margin-right: 12px;">0 records selected</span>
+                                <button id="receiving-btn-pick-file" class="btn btn-secondary btn-sm" type="button">
+                                    📁 Pick File
+                                </button>
+                                <input type="file" id="receiving-db-file-input" accept=".xlsx,.xls,.csv" style="display: none;">
+                            </div>
+                        </div>
+                        <!-- Excel-specific controls: Sheet picker and Header row input -->
+                        <div id="receiving-excel-actions-row" class="excel-actions-row hidden">
+                            <div class="excel-action-item">
+                                <span class="control-label">📋 Sheet:</span>
+                                <select id="receiving-sheet-select" class="sheet-select">
+                                    <option value="">Select Sheet...</option>
+                                </select>
+                            </div>
+                            <div class="excel-action-item">
+                                <span class="control-label">🔝 Header Row:</span>
+                                <input type="number" id="receiving-header-row-input" class="header-row-input" min="1" value="1">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Table Container -->
+                    <div class="table-container">
+                        <table id="receiving-records-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px; text-align: center;"><input type="checkbox" id="receiving-select-all" style="cursor: pointer; width: 16px; height: 16px;"></th>
+                                    <th>RMS P.O.</th>
+                                    <th>Customer</th>
+                                    <th>Customer P.O.</th>
+                                    <th>Part Description</th>
+                                    <th>Received Date</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="receiving-table-body">
+                                <!-- Rows loaded dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination & Receive Button -->
+                    <div class="pagination-receive-bar" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 10px; flex-wrap: wrap;">
+                        <div class="pagination" style="margin: 0;">
+                            <button id="receiving-prev-page" class="btn btn-secondary" disabled>← Previous</button>
+                            <span id="receiving-page-indicator">Page 1 of 1</span>
+                            <button id="receiving-next-page" class="btn btn-secondary" disabled>Next →</button>
+                        </div>
+                        <button type="button" id="btn-receive-action" class="btn btn-primary" style="width: auto; min-width: 160px;" disabled>
+                            📥 Receive Selected
+                        </button>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right Side: Details & Editor Panel -->
+            <section class="editor-section card" id="receiving-editor-card">
+                <div class="empty-state" id="receiving-empty-state">
+                    <div class="empty-state-icon">📥</div>
+                    <h3>No Records Selected</h3>
+                    <p>Select checkboxes from the table and click "Receive Selected" to bulk edit receiving details.</p>
+                </div>
+
+                <div class="editor-content hidden" id="receiving-editor-content">
+                    <div class="editor-header">
+                        <div class="po-badge-title">
+                            <h3>Receiving <span id="receiving-po-title">0</span> Records</h3>
+                        </div>
+                    </div>
+
+                    <form id="receiving-form" class="editor-form">
+                        <div class="form-section-title">Bulk Inbound Shipping Info</div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="rec-date">Received Date</label>
+                                <input type="text" id="rec-date" placeholder="e.g. 05/20/2026">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="rec-courier">Courier</label>
+                                <input type="text" id="rec-courier" placeholder="e.g. UPS">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="rec-tracking">Tracking# / Pro Number</label>
+                                <input type="text" id="rec-tracking" placeholder="e.g. 1Z0XW10...">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="rec-boxes">No. of Boxes</label>
+                                <input type="text" id="rec-boxes" placeholder="e.g. 2">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="rec-weight">Weight (Lbs.)</label>
+                                <input type="text" id="rec-weight" placeholder="e.g. 2 LBS">
+                            </div>
+
+                            <div class="form-group">
+                                <label>LxWxH (Inches)</label>
+                                <div style="display: flex; gap: 8px;">
+                                    <input type="text" id="rec-l" placeholder="L" style="text-align: center;">
+                                    <input type="text" id="rec-w" placeholder="W" style="text-align: center;">
+                                    <input type="text" id="rec-h" placeholder="H" style="text-align: center;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-section-title">Photo Upload</div>
+                        <div class="form-grid">
+                            <div class="form-group span-2">
+                                <label for="rec-photo-file">Select Photo</label>
+                                <input type="file" id="rec-photo-file" accept="image/*" style="display: none;">
+                                <div style="display: flex; gap: 12px; align-items: center;">
+                                    <button type="button" id="btn-upload-photo" class="btn btn-secondary" style="width: auto;">
+                                        📷 Choose Photo
+                                    </button>
+                                    <input type="text" id="rec-photo" placeholder="Photo filename (saved in photo column)" readonly style="flex-grow: 1;">
+                                </div>
+                                <div id="photo-preview-container" class="hidden" style="margin-top: 10px; border: 1px solid var(--card-border); border-radius: 12px; padding: 6px; display: inline-block; background: var(--input-bg);">
+                                    <img id="photo-preview" src="" alt="Uploaded Preview" style="max-height: 120px; border-radius: 8px; display: block;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-section-title">Individual Reports</div>
+                        <div class="form-grid">
+                            <div class="form-group span-2" style="display: flex; flex-direction: column; gap: 8px;">
+                                <label for="rec-record-select">Select Record for Report:</label>
+                                <div style="display: flex; gap: 10px;">
+                                    <select id="rec-record-select" style="flex-grow: 1; background: var(--input-bg); border: 1px solid var(--input-border); color: var(--text-primary); padding: 10px; border-radius: 12px; outline: none; font-family: inherit;">
+                                        <option value="">Choose a record...</option>
+                                    </select>
+                                    <button type="button" id="btn-open-report" class="btn btn-secondary" style="width: auto; min-width: 100px;">
+                                        📝 Report
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group span-2 hidden" id="rec-report-input-group">
+                                <label for="rec-report-text">Report Notes for Selected Record</label>
+                                <textarea id="rec-report-text" rows="3" placeholder="Enter report notes..."></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="action-buttons" style="margin-top: 20px;">
+                            <button type="submit" class="btn btn-primary" id="btn-save-receiving">
+                                <span class="btn-icon">💾</span> Save to Sheet
                             </button>
                         </div>
                     </form>

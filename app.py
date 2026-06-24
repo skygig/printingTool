@@ -96,14 +96,19 @@ def parse_csv_database(file_path=None):
             if not headers:
                 return records
                 
+            headers_clean = [h.strip().lower() for h in headers]
+            boxes_idx = next((i for i, h in enumerate(headers_clean) if "boxes" in h or "no. of boxes" in h), -1)
+            photo_idx = next((i for i, h in enumerate(headers_clean) if "photo" in h), -1)
+            report_idx = next((i for i, h in enumerate(headers_clean) if "report" in h), -1)
+            
             for idx, row in enumerate(reader):
                 if not row or all(cell.strip() == "" for cell in row):
                     continue # Skip empty rows
                 
-                # Check that row has enough columns (header has 34 columns)
                 # Pad row if it is short
-                if len(row) < 34:
-                    row = row + [""] * (34 - len(row))
+                max_len = max(34, boxes_idx + 1, photo_idx + 1, report_idx + 1)
+                if len(row) < max_len:
+                    row = row + [""] * (max_len - len(row))
                     
                 # Create mapped dictionary using indexes
                 record = {
@@ -142,6 +147,9 @@ def parse_csv_database(file_path=None):
                     'shipping_charges': row[31].strip(),
                     'customer_contact': row[32].strip(),
                     'outbound_notes': row[33].strip(),
+                    'no_of_boxes': row[boxes_idx].strip() if boxes_idx != -1 else "",
+                    'photo': row[photo_idx].strip() if photo_idx != -1 else "",
+                    'report': row[report_idx].strip() if report_idx != -1 else "",
                 }
                 
                 # Check for at least some identifying data
@@ -183,6 +191,12 @@ def parse_excel_database(file_path, sheet_name=None, header_row=1):
             print(f"Warning: header_row {h_idx} exceeds total rows {len(rows)}")
             return records
             
+        headers = rows[h_idx - 1]
+        headers_clean = [str(h).strip().lower() if h is not None else "" for h in headers]
+        boxes_idx = next((i for i, h in enumerate(headers_clean) if "boxes" in h or "no. of boxes" in h), -1)
+        photo_idx = next((i for i, h in enumerate(headers_clean) if "photo" in h), -1)
+        report_idx = next((i for i, h in enumerate(headers_clean) if "report" in h), -1)
+        
         data_rows = rows[h_idx:]
         
         # Iterate data rows starting after the header
@@ -201,8 +215,9 @@ def parse_excel_database(file_path, sheet_name=None, header_row=1):
             if not row or all(cell.strip() == "" for cell in row):
                 continue # Skip empty rows
                 
-            if len(row) < 34:
-                row = row + [""] * (34 - len(row))
+            max_len = max(34, boxes_idx + 1, photo_idx + 1, report_idx + 1)
+            if len(row) < max_len:
+                row = row + [""] * (max_len - len(row))
                 
             record = {
                 'row_id': idx + h_idx + 1, # Line number in sheet (1-indexed, starts at header_row + 1)
@@ -240,6 +255,9 @@ def parse_excel_database(file_path, sheet_name=None, header_row=1):
                 'shipping_charges': row[31].strip(),
                 'customer_contact': row[32].strip(),
                 'outbound_notes': row[33].strip(),
+                'no_of_boxes': row[boxes_idx].strip() if boxes_idx != -1 else "",
+                'photo': row[photo_idx].strip() if photo_idx != -1 else "",
+                'report': row[report_idx].strip() if report_idx != -1 else "",
             }
             
             if record['rms_po'] or record['customer_po'] or record['part_received']:
@@ -577,6 +595,254 @@ def generate_documents():
     except Exception as e:
         print(f"Error generating files: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+def ensure_receiving_headers_csv(file_path):
+    if not os.path.exists(file_path):
+        return -1, -1, -1
+        
+    with open(file_path, mode='r', encoding='utf-8-sig', errors='ignore') as f:
+        reader = csv.reader(f)
+        rows = list(reader)
+        
+    if not rows:
+        return -1, -1, -1
+        
+    headers = rows[0]
+    headers_clean = [h.strip().lower() for h in headers]
+    
+    boxes_idx = -1
+    photo_idx = -1
+    report_idx = -1
+    
+    for i, h in enumerate(headers_clean):
+        if "boxes" in h or "no. of boxes" in h:
+            boxes_idx = i
+        elif "photo" in h:
+            photo_idx = i
+        elif "report" in h:
+            report_idx = i
+            
+    modified = False
+    if boxes_idx == -1:
+        headers.append("No. of boxes")
+        boxes_idx = len(headers) - 1
+        modified = True
+    if photo_idx == -1:
+        headers.append("photo")
+        photo_idx = len(headers) - 1
+        modified = True
+    if report_idx == -1:
+        headers.append("Report")
+        report_idx = len(headers) - 1
+        modified = True
+        
+    if modified:
+        # Pad all data rows to match headers length
+        for r in range(1, len(rows)):
+            if len(rows[r]) < len(headers):
+                rows[r] = rows[r] + [""] * (len(headers) - len(rows[r]))
+        # Write back
+        with open(file_path, mode='w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerows(rows)
+            
+    return boxes_idx, photo_idx, report_idx
+
+
+def ensure_receiving_headers_excel(sheet, header_row_idx):
+    # Find existing headers
+    max_col = sheet.max_column
+    headers = [sheet.cell(row=header_row_idx, column=c).value for c in range(1, max_col + 1)]
+    headers_clean = [str(h).strip().lower() if h is not None else "" for h in headers]
+    
+    boxes_idx = -1
+    photo_idx = -1
+    report_idx = -1
+    
+    for i, h in enumerate(headers_clean):
+        if "boxes" in h or "no. of boxes" in h:
+            boxes_idx = i + 1
+        elif "photo" in h:
+            photo_idx = i + 1
+        elif "report" in h:
+            report_idx = i + 1
+            
+    # If not found, append to the end
+    curr_len = len(headers)
+    if boxes_idx == -1:
+        curr_len += 1
+        sheet.cell(row=header_row_idx, column=curr_len, value="No. of boxes")
+        boxes_idx = curr_len
+    if photo_idx == -1:
+        curr_len += 1
+        sheet.cell(row=header_row_idx, column=curr_len, value="photo")
+        photo_idx = curr_len
+    if report_idx == -1:
+        curr_len += 1
+        sheet.cell(row=header_row_idx, column=curr_len, value="Report")
+        report_idx = curr_len
+        
+    return boxes_idx, photo_idx, report_idx
+
+
+def update_csv_records(file_path, updates):
+    boxes_idx, photo_idx, report_idx = ensure_receiving_headers_csv(file_path)
+    
+    with open(file_path, mode='r', encoding='utf-8-sig', errors='ignore') as f:
+        reader = csv.reader(f)
+        rows = list(reader)
+        
+    for update in updates:
+        row_id = int(update['row_id'])
+        row_idx = row_id - 1
+        if row_idx < 0 or row_idx >= len(rows):
+            continue
+            
+        row = rows[row_idx]
+        
+        # Pad row to match max index
+        max_idx = max(33, boxes_idx, photo_idx, report_idx)
+        if len(row) <= max_idx:
+            row = row + [""] * (max_idx - len(row) + 1)
+            
+        # Update fields
+        if 'received_date' in update:
+            row[7] = update['received_date']
+        if 'inbound_carrier' in update:
+            row[8] = update['inbound_carrier']
+        if 'inbound_tracking' in update:
+            row[9] = update['inbound_tracking']
+            
+        if 'inbound_l' in update:
+            row[10] = update['inbound_l']
+        if 'inbound_w' in update:
+            row[11] = update['inbound_w']
+        if 'inbound_h' in update:
+            row[12] = update['inbound_h']
+            
+        if 'inbound_weight' in update:
+            row[13] = update['inbound_weight']
+            
+        if boxes_idx != -1 and 'no_of_boxes' in update:
+            row[boxes_idx] = update['no_of_boxes']
+        if photo_idx != -1 and 'photo' in update:
+            row[photo_idx] = update['photo']
+        if report_idx != -1 and 'report' in update:
+            row[report_idx] = update['report']
+            
+        rows[row_idx] = row
+        
+    with open(file_path, mode='w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerows(rows)
+
+
+def update_excel_records(file_path, sheet_name, header_row_idx, updates):
+    wb = openpyxl.load_workbook(file_path)
+    if not sheet_name or sheet_name not in wb.sheetnames:
+        sheet = wb.active
+    else:
+        sheet = wb[sheet_name]
+        
+    boxes_idx, photo_idx, report_idx = ensure_receiving_headers_excel(sheet, header_row_idx)
+    
+    # Helper to clean/cast values for Excel
+    def cast_val(val):
+        val_str = str(val).strip()
+        if val_str == "":
+            return None
+        try:
+            if val_str.isdigit():
+                return int(val_str)
+            float_val = float(val_str)
+            if float_val.is_integer():
+                return int(float_val)
+            return float_val
+        except ValueError:
+            return val_str
+            
+    for update in updates:
+        row_id = int(update['row_id'])
+        
+        if 'received_date' in update:
+            sheet.cell(row=row_id, column=8, value=cast_val(update['received_date']))
+        if 'inbound_carrier' in update:
+            sheet.cell(row=row_id, column=9, value=cast_val(update['inbound_carrier']))
+        if 'inbound_tracking' in update:
+            sheet.cell(row=row_id, column=10, value=cast_val(update['inbound_tracking']))
+            
+        if 'inbound_l' in update:
+            sheet.cell(row=row_id, column=11, value=cast_val(update['inbound_l']))
+        if 'inbound_w' in update:
+            sheet.cell(row=row_id, column=12, value=cast_val(update['inbound_w']))
+        if 'inbound_h' in update:
+            sheet.cell(row=row_id, column=13, value=cast_val(update['inbound_h']))
+            
+        if 'inbound_weight' in update:
+            sheet.cell(row=row_id, column=14, value=cast_val(update['inbound_weight']))
+            
+        if boxes_idx != -1 and 'no_of_boxes' in update:
+            sheet.cell(row=row_id, column=boxes_idx, value=cast_val(update['no_of_boxes']))
+        if photo_idx != -1 and 'photo' in update:
+            sheet.cell(row=row_id, column=photo_idx, value=cast_val(update['photo']))
+        if report_idx != -1 and 'report' in update:
+            sheet.cell(row=row_id, column=report_idx, value=cast_val(update['report']))
+            
+    wb.save(file_path)
+    wb.close()
+
+
+@app.route('/api/upload-photo', methods=['POST'])
+def upload_photo():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    if file:
+        filename = secure_filename(file.filename)
+        import time
+        timestamp = int(time.time())
+        name, ext = os.path.splitext(filename)
+        unique_filename = f"{name}_{timestamp}{ext}"
+        
+        uploads_dir = os.path.join(BASE_DIR, 'static', 'uploads')
+        os.makedirs(uploads_dir, exist_ok=True)
+        file_path = os.path.join(uploads_dir, unique_filename)
+        file.save(file_path)
+        
+        return jsonify({
+            'success': True,
+            'filename': unique_filename,
+            'url': f"/uploads/{unique_filename}"
+        })
+
+
+@app.route('/api/update-records', methods=['POST'])
+def update_records():
+    global CURRENT_DB_PATH, CURRENT_SHEET, CURRENT_HEADER_ROW
+    data = request.json
+    if not data or 'updates' not in data:
+        return jsonify({'error': 'No updates provided'}), 400
+        
+    if not CURRENT_DB_PATH or not os.path.exists(CURRENT_DB_PATH):
+        return jsonify({'error': 'No active database file loaded.'}), 400
+        
+    updates = data['updates']
+    ext = os.path.splitext(CURRENT_DB_PATH)[1].lower()
+    try:
+        if ext == '.csv':
+            update_csv_records(CURRENT_DB_PATH, updates)
+        elif ext in ['.xlsx', '.xls']:
+            update_excel_records(CURRENT_DB_PATH, CURRENT_SHEET, CURRENT_HEADER_ROW, updates)
+        else:
+            return jsonify({'error': 'Unsupported file format.'}), 400
+            
+        return jsonify({'success': True, 'message': 'Records updated successfully!'})
+    except Exception as e:
+        print(f"Error updating records: {e}")
+        return jsonify({'error': f"Failed to update records: {str(e)}"}), 500
 
 
 @app.route('/api/generated-files')

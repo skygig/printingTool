@@ -2,8 +2,16 @@
 let records = [];
 let filteredRecords = [];
 let currentPage = 1;
-const rowsPerPage = 12;
+const rowsPerPage = 10;
 let selectedRecord = null;
+
+// Receiving State Variables
+let receivingFilteredRecords = [];
+let receivingCurrentPage = 1;
+let selectedReceivingRowIds = new Set();
+let activeReceivingRecords = [];
+let receivingReports = {};
+let uploadedPhotoName = "";
 
 // Address Templates
 const ADDRESSES = {
@@ -35,6 +43,13 @@ const excelActionsRow = document.getElementById('excel-actions-row');
 const sheetSelect = document.getElementById('sheet-select');
 const headerRowInput = document.getElementById('header-row-input');
 const dbFilename = document.getElementById('db-filename');
+
+// Receiving DB control elements
+const receivingBtnPickFile = document.getElementById('receiving-btn-pick-file');
+const receivingDbFileInput = document.getElementById('receiving-db-file-input');
+const receivingExcelActionsRow = document.getElementById('receiving-excel-actions-row');
+const receivingSheetSelect = document.getElementById('receiving-sheet-select');
+const receivingHeaderRowInput = document.getElementById('receiving-header-row-input');
 
 
 const emptyState = document.getElementById('empty-state');
@@ -83,9 +98,21 @@ window.addEventListener('DOMContentLoaded', () => {
     headerRowInput.addEventListener('change', handleHeaderRowChange);
     headerRowInput.addEventListener('keyup', (e) => {
         if (e.key === 'Enter') {
-            handleHeaderRowChange();
+            handleHeaderRowChange(e);
         }
     });
+
+    if (receivingBtnPickFile) receivingBtnPickFile.addEventListener('click', () => receivingDbFileInput.click());
+    if (receivingDbFileInput) receivingDbFileInput.addEventListener('change', handleFileUpload);
+    if (receivingSheetSelect) receivingSheetSelect.addEventListener('change', handleSheetChange);
+    if (receivingHeaderRowInput) {
+        receivingHeaderRowInput.addEventListener('change', handleHeaderRowChange);
+        receivingHeaderRowInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') {
+                handleHeaderRowChange(e);
+            }
+        });
+    }
 
     // Theme Toggle Handler
     const themeToggle = document.getElementById('theme-toggle');
@@ -122,26 +149,38 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Page Switching (Dashboard & Order Entry Tabs)
+    // Page Switching (Dashboard, Receiving & Order Entry Tabs)
     const tabDashboard = document.getElementById('tab-dashboard');
+    const tabReceiving = document.getElementById('tab-receiving');
     const tabOrderEntry = document.getElementById('tab-order-entry');
     const pageDashboard = document.getElementById('dashboard-page');
+    const pageReceiving = document.getElementById('receiving-page');
     const pageOrderEntry = document.getElementById('order-entry-page');
     const orderEntryForm = document.getElementById('order-entry-form');
 
-    if (tabDashboard && tabOrderEntry && pageDashboard && pageOrderEntry) {
+    function switchTab(activeTab, activePage) {
+        [tabDashboard, tabReceiving, tabOrderEntry].forEach(t => {
+            if (t) t.classList.remove('active');
+        });
+        [pageDashboard, pageReceiving, pageOrderEntry].forEach(p => {
+            if (p) p.classList.add('hidden');
+        });
+        if (activeTab) activeTab.classList.add('active');
+        if (activePage) activePage.classList.remove('hidden');
+    }
+
+    if (tabDashboard && tabReceiving && tabOrderEntry && pageDashboard && pageReceiving && pageOrderEntry) {
         tabDashboard.addEventListener('click', () => {
-            tabDashboard.classList.add('active');
-            tabOrderEntry.classList.remove('active');
-            pageDashboard.classList.remove('hidden');
-            pageOrderEntry.classList.add('hidden');
+            switchTab(tabDashboard, pageDashboard);
+        });
+
+        tabReceiving.addEventListener('click', () => {
+            switchTab(tabReceiving, pageReceiving);
+            renderReceivingTable();
         });
 
         tabOrderEntry.addEventListener('click', () => {
-            tabOrderEntry.classList.add('active');
-            tabDashboard.classList.remove('active');
-            pageOrderEntry.classList.remove('hidden');
-            pageDashboard.classList.add('hidden');
+            switchTab(tabOrderEntry, pageOrderEntry);
             prefillOrderEntryDefaults();
         });
     }
@@ -157,6 +196,33 @@ window.addEventListener('DOMContentLoaded', () => {
             tabDashboard.click();
         });
     }
+
+    // Receiving Event Listeners
+    const recSearchInput = document.getElementById('receiving-search-input');
+    const recPrevPageBtn = document.getElementById('receiving-prev-page');
+    const recNextPageBtn = document.getElementById('receiving-next-page');
+    const recSelectAllCheckbox = document.getElementById('receiving-select-all');
+    const btnReceiveAction = document.getElementById('btn-receive-action');
+    
+    const recForm = document.getElementById('receiving-form');
+    const btnUploadPhoto = document.getElementById('btn-upload-photo');
+    const recPhotoFile = document.getElementById('rec-photo-file');
+    const recRecordSelect = document.getElementById('rec-record-select');
+    const btnOpenReport = document.getElementById('btn-open-report');
+    const recReportTextarea = document.getElementById('rec-report-text');
+    
+    if (recSearchInput) recSearchInput.addEventListener('input', handleReceivingSearch);
+    if (recPrevPageBtn) recPrevPageBtn.addEventListener('click', () => changeReceivingPage(-1));
+    if (recNextPageBtn) recNextPageBtn.addEventListener('click', () => changeReceivingPage(1));
+    if (recSelectAllCheckbox) recSelectAllCheckbox.addEventListener('change', handleReceivingSelectAllChange);
+    if (btnReceiveAction) btnReceiveAction.addEventListener('click', handleReceiveAction);
+    
+    if (recForm) recForm.addEventListener('submit', handleReceivingSave);
+    if (btnUploadPhoto) btnUploadPhoto.addEventListener('click', handleUploadPhotoClick);
+    if (recPhotoFile) recPhotoFile.addEventListener('change', handlePhotoFileChange);
+    if (recRecordSelect) recRecordSelect.addEventListener('change', handleReportRecordSelectChange);
+    if (btnOpenReport) btnOpenReport.addEventListener('click', handleOpenReportClick);
+    if (recReportTextarea) recReportTextarea.addEventListener('input', handleReportTextareaInput);
 });
 
 // Fetch CSV/Excel Data from API
@@ -166,25 +232,46 @@ function loadDatabase() {
         .then(res => res.json())
         .then(status => {
             dbFilename.textContent = status.filename;
+            const recDbFilename = document.getElementById('receiving-db-filename');
+            if (recDbFilename) recDbFilename.textContent = status.filename;
             
             // Render sheets if it's an Excel database
             if (status.sheets && status.sheets.length > 0) {
                 sheetSelect.innerHTML = '';
+                if (receivingSheetSelect) receivingSheetSelect.innerHTML = '';
                 status.sheets.forEach(sheet => {
-                    const opt = document.createElement('option');
-                    opt.value = sheet;
-                    opt.textContent = sheet;
+                    const opt1 = document.createElement('option');
+                    opt1.value = sheet;
+                    opt1.textContent = sheet;
                     if (sheet === status.sheet_name) {
-                        opt.selected = true;
+                        opt1.selected = true;
                     }
-                    sheetSelect.appendChild(opt);
+                    sheetSelect.appendChild(opt1);
+                    
+                    if (receivingSheetSelect) {
+                        const opt2 = document.createElement('option');
+                        opt2.value = sheet;
+                        opt2.textContent = sheet;
+                        if (sheet === status.sheet_name) {
+                            opt2.selected = true;
+                        }
+                        receivingSheetSelect.appendChild(opt2);
+                    }
                 });
                 headerRowInput.value = status.header_row || 1;
+                if (receivingHeaderRowInput) receivingHeaderRowInput.value = status.header_row || 1;
+                
                 excelActionsRow.classList.remove('hidden');
+                if (receivingExcelActionsRow) receivingExcelActionsRow.classList.remove('hidden');
             } else {
                 excelActionsRow.classList.add('hidden');
+                if (receivingExcelActionsRow) receivingExcelActionsRow.classList.add('hidden');
+                
                 sheetSelect.innerHTML = '<option value="">Select Sheet...</option>';
+                if (receivingSheetSelect) receivingSheetSelect.innerHTML = '<option value="">Select Sheet...</option>';
+                
                 headerRowInput.value = 1;
+                if (receivingHeaderRowInput) receivingHeaderRowInput.value = 1;
             }
             
             // 2. Fetch actual records
@@ -205,7 +292,19 @@ function loadDatabase() {
                 }
             }
             
+            // Reset receiving selection on DB load
+            selectedReceivingRowIds.clear();
+            activeReceivingRecords = [];
+            receivingReports = {};
+            uploadedPhotoName = '';
+            
+            const recEmptyState = document.getElementById('receiving-empty-state');
+            const recEditorContent = document.getElementById('receiving-editor-content');
+            if (recEmptyState) recEmptyState.classList.remove('hidden');
+            if (recEditorContent) recEditorContent.classList.add('hidden');
+            
             renderTable();
+            renderReceivingTable();
         })
         .catch(err => {
             console.error("Error loading database:", err);
@@ -238,6 +337,7 @@ function groupRecordsByCustomerPo(recordList) {
 function setRecords(data) {
     records = groupRecordsByCustomerPo(data);
     filteredRecords = [...records];
+    receivingFilteredRecords = [...records];
 }
 
 // Render data grid rows
@@ -785,6 +885,8 @@ function handleFileUpload(e) {
     
     // Update filename text to show loading progress
     dbFilename.textContent = `Uploading ${file.name}...`;
+    const recDbFilename = document.getElementById('receiving-db-filename');
+    if (recDbFilename) recDbFilename.textContent = `Uploading ${file.name}...`;
     recordsCount.textContent = "Uploading...";
     
     const formData = new FormData();
@@ -796,29 +898,51 @@ function handleFileUpload(e) {
     })
     .then(res => res.json())
     .then(data => {
-        // Clear file input value
+        // Clear both file input values
         dbFileInput.value = '';
+        if (receivingDbFileInput) receivingDbFileInput.value = '';
         
         if (data.success) {
             dbFilename.textContent = data.filename;
+            if (recDbFilename) recDbFilename.textContent = data.filename;
             
             if (data.type === 'excel') {
                 sheetSelect.innerHTML = '';
+                if (receivingSheetSelect) receivingSheetSelect.innerHTML = '';
+                
                 data.sheets.forEach(sheet => {
-                    const opt = document.createElement('option');
-                    opt.value = sheet;
-                    opt.textContent = sheet;
+                    const opt1 = document.createElement('option');
+                    opt1.value = sheet;
+                    opt1.textContent = sheet;
                     if (sheet === data.selected_sheet) {
-                        opt.selected = true;
+                        opt1.selected = true;
                     }
-                    sheetSelect.appendChild(opt);
+                    sheetSelect.appendChild(opt1);
+                    
+                    if (receivingSheetSelect) {
+                        const opt2 = document.createElement('option');
+                        opt2.value = sheet;
+                        opt2.textContent = sheet;
+                        if (sheet === data.selected_sheet) {
+                            opt2.selected = true;
+                        }
+                        receivingSheetSelect.appendChild(opt2);
+                    }
                 });
                 headerRowInput.value = data.header_row || 1;
+                if (receivingHeaderRowInput) receivingHeaderRowInput.value = data.header_row || 1;
+                
                 excelActionsRow.classList.remove('hidden');
+                if (receivingExcelActionsRow) receivingExcelActionsRow.classList.remove('hidden');
             } else {
                 excelActionsRow.classList.add('hidden');
+                if (receivingExcelActionsRow) receivingExcelActionsRow.classList.add('hidden');
+                
                 sheetSelect.innerHTML = '<option value="">Select Sheet...</option>';
+                if (receivingSheetSelect) receivingSheetSelect.innerHTML = '<option value="">Select Sheet...</option>';
+                
                 headerRowInput.value = 1;
+                if (receivingHeaderRowInput) receivingHeaderRowInput.value = 1;
             }
             
             setRecords(data.records);
@@ -833,7 +957,18 @@ function handleFileUpload(e) {
             // Reset search input
             searchInput.value = '';
             
+            // Reset receiving selection
+            selectedReceivingRowIds.clear();
+            activeReceivingRecords = [];
+            receivingReports = {};
+            uploadedPhotoName = '';
+            const recEmptyState = document.getElementById('receiving-empty-state');
+            const recEditorContent = document.getElementById('receiving-editor-content');
+            if (recEmptyState) recEmptyState.classList.remove('hidden');
+            if (recEditorContent) recEditorContent.classList.add('hidden');
+            
             renderTable();
+            renderReceivingTable();
             showToast("Database Loaded", `Successfully loaded database file "${data.filename}".`, null, false);
         } else {
             showToast("Upload Error", data.error || "Failed to upload file", null, true);
@@ -854,7 +989,10 @@ function handleSheetChange(e) {
     
     recordsCount.textContent = "Loading sheet...";
     
-    const headerRowVal = headerRowInput.value || 1;
+    // Read header row value from whichever input is active
+    const headerRowVal = (e.target === receivingSheetSelect) ? 
+        (receivingHeaderRowInput.value || 1) : 
+        (headerRowInput.value || 1);
     
     fetch('/api/load-sheet', {
         method: 'POST',
@@ -873,6 +1011,10 @@ function handleSheetChange(e) {
             currentPage = 1;
             recordsCount.textContent = `${records.length} records loaded`;
             
+            // Sync selected sheet value on both dropdowns
+            sheetSelect.value = selectedSheet;
+            if (receivingSheetSelect) receivingSheetSelect.value = selectedSheet;
+            
             // Clear selections
             selectedRecord = null;
             emptyState.classList.remove('hidden');
@@ -881,7 +1023,18 @@ function handleSheetChange(e) {
             // Reset search input
             searchInput.value = '';
             
+            // Reset receiving selection
+            selectedReceivingRowIds.clear();
+            activeReceivingRecords = [];
+            receivingReports = {};
+            uploadedPhotoName = '';
+            const recEmptyState = document.getElementById('receiving-empty-state');
+            const recEditorContent = document.getElementById('receiving-editor-content');
+            if (recEmptyState) recEmptyState.classList.remove('hidden');
+            if (recEditorContent) recEditorContent.classList.add('hidden');
+            
             renderTable();
+            renderReceivingTable();
             showToast("Sheet Loaded", `Successfully loaded sheet "${selectedSheet}".`, null, false);
         } else {
             showToast("Load Error", data.error || "Failed to load sheet", null, true);
@@ -896,14 +1049,21 @@ function handleSheetChange(e) {
 }
 
 // Header Row Change Handler
-function handleHeaderRowChange() {
-    const headerRowVal = parseInt(headerRowInput.value, 10);
+function handleHeaderRowChange(e) {
+    let inputEl = headerRowInput;
+    if (e && e.target) {
+        inputEl = e.target;
+    }
+    const headerRowVal = parseInt(inputEl.value, 10);
     if (isNaN(headerRowVal) || headerRowVal < 1) {
         showToast("Invalid Input", "Header row must be a positive number.", null, true);
         return;
     }
     
-    const selectedSheet = sheetSelect.value;
+    const selectedSheet = (inputEl === receivingHeaderRowInput) ? 
+        (receivingSheetSelect.value) : 
+        (sheetSelect.value);
+        
     recordsCount.textContent = "Updating header row...";
     
     fetch('/api/load-sheet', {
@@ -923,6 +1083,14 @@ function handleHeaderRowChange() {
             currentPage = 1;
             recordsCount.textContent = `${records.length} records loaded`;
             
+            // Sync values to both header inputs
+            headerRowInput.value = data.header_row;
+            if (receivingHeaderRowInput) receivingHeaderRowInput.value = data.header_row;
+            
+            // Also sync sheet select values if needed
+            sheetSelect.value = selectedSheet;
+            if (receivingSheetSelect) receivingSheetSelect.value = selectedSheet;
+            
             // Clear selections
             selectedRecord = null;
             emptyState.classList.remove('hidden');
@@ -931,7 +1099,18 @@ function handleHeaderRowChange() {
             // Reset search input
             searchInput.value = '';
             
+            // Reset receiving selection
+            selectedReceivingRowIds.clear();
+            activeReceivingRecords = [];
+            receivingReports = {};
+            uploadedPhotoName = '';
+            const recEmptyState = document.getElementById('receiving-empty-state');
+            const recEditorContent = document.getElementById('receiving-editor-content');
+            if (recEmptyState) recEmptyState.classList.remove('hidden');
+            if (recEditorContent) recEditorContent.classList.add('hidden');
+            
             renderTable();
+            renderReceivingTable();
             showToast("Header Row Applied", `Successfully loaded records starting from row ${data.header_row}.`, null, false);
         } else {
             showToast("Load Error", data.error || "Failed to apply header row", null, true);
@@ -1037,6 +1216,7 @@ function handleOrderEntrySubmit(e) {
                     setRecords(recordsList);
                     recordsCount.textContent = `${records.length} records loaded`;
                     renderTable();
+                    renderReceivingTable();
                     
                     // Switch back to Dashboard page
                     const tabDashboard = document.getElementById('tab-dashboard');
@@ -1082,5 +1262,383 @@ function handleOrderEntrySubmit(e) {
         saveBtn.innerHTML = originalText;
         showToast("Server Error", "An error occurred on the server.", null, true);
         console.error("Save Error:", err);
+    });
+}
+
+// ==========================================
+// RECEIVING VIEW IMPLEMENTATION
+// ==========================================
+
+// Render Receiving Table
+function renderReceivingTable() {
+    const recTableBody = document.getElementById('receiving-table-body');
+    const recPageIndicator = document.getElementById('receiving-page-indicator');
+    const recPrevPageBtn = document.getElementById('receiving-prev-page');
+    const recNextPageBtn = document.getElementById('receiving-next-page');
+    const selectAllCheckbox = document.getElementById('receiving-select-all');
+    const receiveActionBtn = document.getElementById('btn-receive-action');
+    
+    if (!recTableBody) return;
+    
+    // Set filtered records based on search
+    const searchVal = document.getElementById('receiving-search-input').value.toLowerCase().trim();
+    if (searchVal === '') {
+        receivingFilteredRecords = [...records];
+    } else {
+        receivingFilteredRecords = records.filter(rec => {
+            return (
+                (rec.rms_po && rec.rms_po.toLowerCase().includes(searchVal)) ||
+                (rec.customer_po && rec.customer_po.toLowerCase().includes(searchVal)) ||
+                (rec.customer && rec.customer.toLowerCase().includes(searchVal)) ||
+                (rec.vendor && rec.vendor.toLowerCase().includes(searchVal)) ||
+                (rec.part_received && rec.part_received.toLowerCase().includes(searchVal)) ||
+                (rec.outbound_date && rec.outbound_date.toLowerCase().includes(searchVal)) ||
+                (rec.inbound_date && rec.inbound_date.toLowerCase().includes(searchVal))
+            );
+        });
+    }
+    
+    if (receivingFilteredRecords.length === 0) {
+        recTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 30px;">No records found matching search.</td></tr>`;
+        recPageIndicator.textContent = 'Page 0 of 0';
+        recPrevPageBtn.disabled = true;
+        recNextPageBtn.disabled = true;
+        receiveActionBtn.disabled = true;
+        return;
+    }
+    
+    const startIdx = (receivingCurrentPage - 1) * rowsPerPage;
+    const endIdx = Math.min(startIdx + rowsPerPage, receivingFilteredRecords.length);
+    const totalPages = Math.ceil(receivingFilteredRecords.length / rowsPerPage);
+    
+    recPageIndicator.textContent = `Page ${receivingCurrentPage} of ${totalPages}`;
+    recPrevPageBtn.disabled = receivingCurrentPage === 1;
+    recNextPageBtn.disabled = receivingCurrentPage === totalPages;
+    
+    // Check if all page records are checked
+    const pageRecords = receivingFilteredRecords.slice(startIdx, endIdx);
+    const allChecked = pageRecords.every(r => selectedReceivingRowIds.has(r.row_id));
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = allChecked && pageRecords.length > 0;
+    }
+    
+    recTableBody.innerHTML = '';
+    
+    for (let i = startIdx; i < endIdx; i++) {
+        const rec = receivingFilteredRecords[i];
+        const tr = document.createElement('tr');
+        
+        const isChecked = selectedReceivingRowIds.has(rec.row_id);
+        if (isChecked) {
+            tr.classList.add('receiving-selected');
+        }
+        
+        const statusClass = rec.invoice_status.toLowerCase() === 'invoiced' ? 'invoiced' : 'pending';
+        const statusLabel = rec.invoice_status || 'Pending';
+        const shortDesc = rec.part_received.length > 35 ? rec.part_received.substring(0, 35) + '...' : rec.part_received;
+        
+        tr.innerHTML = `
+            <td class="receiving-checkbox-cell" onclick="event.stopPropagation();">
+                <input type="checkbox" class="row-select-checkbox" data-row-id="${rec.row_id}" ${isChecked ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
+            </td>
+            <td><strong>${rec.rms_po || 'N/A'}</strong></td>
+            <td>${rec.customer || 'N/A'}</td>
+            <td>${rec.customer_po || 'N/A'}</td>
+            <td title="${rec.part_received}">${shortDesc}</td>
+            <td>${rec.received_date || rec.inbound_date || 'N/A'}</td>
+            <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+        `;
+        
+        const checkbox = tr.querySelector('.row-select-checkbox');
+        checkbox.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                selectedReceivingRowIds.add(rec.row_id);
+                tr.classList.add('receiving-selected');
+            } else {
+                selectedReceivingRowIds.delete(rec.row_id);
+                tr.classList.remove('receiving-selected');
+            }
+            updateReceivingSelectionControls();
+        });
+        
+        tr.addEventListener('click', () => {
+            checkbox.checked = !checkbox.checked;
+            checkbox.dispatchEvent(new Event('change'));
+        });
+        
+        recTableBody.appendChild(tr);
+    }
+    
+    updateReceivingSelectionControls();
+}
+
+function updateReceivingSelectionControls() {
+    const selectedCountSpan = document.getElementById('receiving-selected-count');
+    const receiveActionBtn = document.getElementById('btn-receive-action');
+    if (selectedCountSpan) {
+        selectedCountSpan.textContent = `${selectedReceivingRowIds.size} records selected`;
+    }
+    if (receiveActionBtn) {
+        receiveActionBtn.disabled = selectedReceivingRowIds.size === 0;
+    }
+}
+
+function handleReceivingSearch() {
+    receivingCurrentPage = 1;
+    renderReceivingTable();
+}
+
+function changeReceivingPage(direction) {
+    const totalPages = Math.ceil(receivingFilteredRecords.length / rowsPerPage);
+    const newPage = receivingCurrentPage + direction;
+    
+    if (newPage >= 1 && newPage <= totalPages) {
+        receivingCurrentPage = newPage;
+        renderReceivingTable();
+    }
+}
+
+function handleReceivingSelectAllChange(e) {
+    const isChecked = e.target.checked;
+    const startIdx = (receivingCurrentPage - 1) * rowsPerPage;
+    const endIdx = Math.min(startIdx + rowsPerPage, receivingFilteredRecords.length);
+    
+    for (let i = startIdx; i < endIdx; i++) {
+        const rec = receivingFilteredRecords[i];
+        if (isChecked) {
+            selectedReceivingRowIds.add(rec.row_id);
+        } else {
+            selectedReceivingRowIds.delete(rec.row_id);
+        }
+    }
+    renderReceivingTable();
+}
+
+// On clicking "Receive Selected"
+function handleReceiveAction() {
+    if (selectedReceivingRowIds.size === 0) return;
+    
+    activeReceivingRecords = records.filter(r => selectedReceivingRowIds.has(r.row_id));
+    
+    const emptyState = document.getElementById('receiving-empty-state');
+    const editorContent = document.getElementById('receiving-editor-content');
+    emptyState.classList.add('hidden');
+    editorContent.classList.remove('hidden');
+    
+    const poTitle = document.getElementById('receiving-po-title');
+    poTitle.textContent = activeReceivingRecords.length;
+    
+    // Reset/Pre-fill fields from the first selected record
+    const firstRec = activeReceivingRecords[0];
+    document.getElementById('rec-date').value = firstRec.received_date || getFormattedToday();
+    document.getElementById('rec-courier').value = firstRec.inbound_carrier || '';
+    document.getElementById('rec-tracking').value = firstRec.inbound_tracking || '';
+    document.getElementById('rec-boxes').value = firstRec.no_of_boxes || '1';
+    document.getElementById('rec-weight').value = firstRec.inbound_weight || '';
+    document.getElementById('rec-l').value = firstRec.inbound_l || '';
+    document.getElementById('rec-w').value = firstRec.inbound_w || '';
+    document.getElementById('rec-h').value = firstRec.inbound_h || '';
+    document.getElementById('rec-photo').value = firstRec.photo || '';
+    
+    // Photo preview setup
+    const photoVal = firstRec.photo || '';
+    const previewContainer = document.getElementById('photo-preview-container');
+    const previewImg = document.getElementById('photo-preview');
+    if (photoVal) {
+        previewImg.src = photoVal.startsWith('/uploads/') ? photoVal : '/uploads/' + photoVal;
+        previewContainer.classList.remove('hidden');
+        uploadedPhotoName = photoVal;
+    } else {
+        previewImg.src = '';
+        previewContainer.classList.add('hidden');
+        uploadedPhotoName = '';
+    }
+    
+    // Populate dropdown selection for reports
+    const recordSelect = document.getElementById('rec-record-select');
+    recordSelect.innerHTML = '<option value="">Choose a record...</option>';
+    activeReceivingRecords.forEach(rec => {
+        const opt = document.createElement('option');
+        opt.value = rec.row_id;
+        const partDesc = rec.part_received.length > 40 ? rec.part_received.substring(0, 40) + '...' : rec.part_received;
+        opt.textContent = `RMS PO: ${rec.rms_po || 'N/A'} - ${partDesc}`;
+        
+        if (receivingReports[rec.row_id] === undefined) {
+            receivingReports[rec.row_id] = rec.report || '';
+        }
+        
+        recordSelect.appendChild(opt);
+    });
+    
+    document.getElementById('rec-report-input-group').classList.add('hidden');
+}
+
+// Individual Report selection handling
+function handleReportRecordSelectChange() {
+    const recordSelect = document.getElementById('rec-record-select');
+    const selectedRowId = recordSelect.value;
+    const reportInputGroup = document.getElementById('rec-report-input-group');
+    const reportTextarea = document.getElementById('rec-report-text');
+    
+    if (!selectedRowId) {
+        reportInputGroup.classList.add('hidden');
+        return;
+    }
+    
+    if (!reportInputGroup.classList.contains('hidden')) {
+        reportTextarea.value = receivingReports[selectedRowId] || '';
+    }
+}
+
+function handleOpenReportClick() {
+    const recordSelect = document.getElementById('rec-record-select');
+    const selectedRowId = recordSelect.value;
+    const reportInputGroup = document.getElementById('rec-report-input-group');
+    const reportTextarea = document.getElementById('rec-report-text');
+    
+    if (!selectedRowId) {
+        alert("Please select a record from the dropdown first.");
+        return;
+    }
+    
+    reportInputGroup.classList.remove('hidden');
+    reportTextarea.value = receivingReports[selectedRowId] || '';
+    reportTextarea.focus();
+}
+
+function handleReportTextareaInput() {
+    const recordSelect = document.getElementById('rec-record-select');
+    const selectedRowId = recordSelect.value;
+    const reportTextarea = document.getElementById('rec-report-text');
+    
+    if (selectedRowId) {
+        receivingReports[selectedRowId] = reportTextarea.value;
+    }
+}
+
+// Photo Upload handlers
+function handleUploadPhotoClick() {
+    document.getElementById('rec-photo-file').click();
+}
+
+function handlePhotoFileChange(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const uploadBtn = document.getElementById('btn-upload-photo');
+    const photoInput = document.getElementById('rec-photo');
+    const previewContainer = document.getElementById('photo-preview-container');
+    const previewImg = document.getElementById('photo-preview');
+    
+    uploadBtn.disabled = true;
+    uploadBtn.textContent = 'Uploading...';
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    fetch('/api/upload-photo', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = '📷 Choose Photo';
+        
+        if (data.success) {
+            uploadedPhotoName = data.filename;
+            photoInput.value = data.filename;
+            
+            previewImg.src = data.url;
+            previewContainer.classList.remove('hidden');
+            
+            showToast("Photo Uploaded", "Photo uploaded successfully!", null, false);
+        } else {
+            showToast("Upload Error", data.error || "Failed to upload photo", null, true);
+        }
+    })
+    .catch(err => {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = '📷 Choose Photo';
+        showToast("Server Error", "An error occurred while uploading photo.", null, true);
+        console.error("Photo upload error:", err);
+    });
+}
+
+// Save receiving edits back to Excel/CSV
+function handleReceivingSave(e) {
+    e.preventDefault();
+    if (activeReceivingRecords.length === 0) return;
+    
+    const saveBtn = document.getElementById('btn-save-receiving');
+    const originalText = saveBtn.innerHTML;
+    
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = `<span class="btn-icon">⏳</span> Saving...`;
+    
+    const dateVal = document.getElementById('rec-date').value.trim();
+    const courierVal = document.getElementById('rec-courier').value.trim();
+    const trackingVal = document.getElementById('rec-tracking').value.trim();
+    const boxesVal = document.getElementById('rec-boxes').value.trim();
+    const weightVal = document.getElementById('rec-weight').value.trim();
+    const lVal = document.getElementById('rec-l').value.trim();
+    const wVal = document.getElementById('rec-w').value.trim();
+    const hVal = document.getElementById('rec-h').value.trim();
+    const photoVal = document.getElementById('rec-photo').value.trim();
+    
+    const updates = activeReceivingRecords.map(rec => {
+        return {
+            row_id: rec.row_id,
+            received_date: dateVal,
+            inbound_carrier: courierVal,
+            inbound_tracking: trackingVal,
+            no_of_boxes: boxesVal,
+            inbound_weight: weightVal,
+            inbound_l: lVal,
+            inbound_w: wVal,
+            inbound_h: hVal,
+            photo: photoVal,
+            report: receivingReports[rec.row_id] || ''
+        };
+    });
+    
+    fetch('/api/update-records', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ updates })
+    })
+    .then(res => res.json())
+    .then(data => {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+        
+        if (data.success) {
+            showToast("Records Saved", `Successfully updated ${updates.length} records in the database.`, null, false);
+            
+            selectedReceivingRowIds.clear();
+            activeReceivingRecords = [];
+            receivingReports = {};
+            uploadedPhotoName = '';
+            
+            document.getElementById('receiving-form').reset();
+            document.getElementById('photo-preview-container').classList.add('hidden');
+            document.getElementById('photo-preview').src = '';
+            document.getElementById('rec-report-input-group').classList.add('hidden');
+            
+            document.getElementById('receiving-empty-state').classList.remove('hidden');
+            document.getElementById('receiving-editor-content').classList.add('hidden');
+            
+            loadDatabase();
+        } else {
+            showToast("Save Error", data.error || "Failed to update records", null, true);
+        }
+    })
+    .catch(err => {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+        showToast("Server Error", "An error occurred on the server.", null, true);
+        console.error("Save receiving error:", err);
     });
 }
