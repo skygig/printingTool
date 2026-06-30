@@ -1155,3 +1155,50 @@ body.light-theme #receiving-records-table tr:hover {
     background-color: rgba(0, 0, 0, 0.02);
 }
 
+/* Scans Dropdown Overlay Styling */
+#scans-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    left: 0;
+    background: #ffffff; /* Solid White background for Light Theme */
+    border: 1px solid var(--card-border, #cbd5e1);
+    border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    z-index: 2000;
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* Solid background overlay in Dark Theme */
+body:not(.light-theme) #scans-dropdown-menu {
+    background: #1e293b; /* Solid Dark Slate */
+    border-color: #334155;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+.scan-dropdown-item {
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.15s ease, transform 0.1s ease;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+/* Light Gray Hover style for Light Theme */
+.scan-dropdown-item:hover {
+    background: #f1f5f9; /* Tailwind Slate-100 (light gray) */
+}
+
+/* Slate hover style for Dark Theme */
+body:not(.light-theme) .scan-dropdown-item:hover {
+    background: #334155; /* Slate-700 */
+}

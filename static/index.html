@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RMS Warehouse Document Generator</title>
+    <title>RMS Warehouse</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -23,7 +23,6 @@
                 <span class="logo-icon">📦</span>
                 <h1>RMS Warehouse</h1>
             </div>
-            <div class="subtitle">Document Generator Tool</div>
             <div class="header-actions">
                 <div class="stats-badge">
                     <span class="indicator"></span>
@@ -226,16 +225,21 @@
         </main>
 
         <!-- Receiving Layout -->
+        <!-- Receiving Layout -->
         <main id="receiving-page" class="dashboard-layout hidden">
             <!-- Left Side Column Container -->
             <div class="dashboard-left-col">
-                <!-- Left Side: Mobile Scanner Integration -->
-                <section class="records-section card" style="display: flex; flex-direction: column; height: 100%;">
+                <!-- Left Side: Table & Search -->
+                <section class="records-section card">
                     <div class="card-header">
-                        <h2>Receiving Scanner Integration</h2>
+                        <h2>Receiving Inventory</h2>
+                        <div class="search-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="receiving-search-input" placeholder="Search by PO, RMS P.O, Part, Customer, Date...">
+                        </div>
                     </div>
 
-                    <!-- Database Control Info (Display only, picker moved or kept compact) -->
+                    <!-- Database Control Info -->
                     <div class="db-control-bar">
                         <div class="db-main-row">
                             <div class="db-info">
@@ -245,22 +249,31 @@
                         </div>
                     </div>
 
-                    <!-- Scan Trigger CTA and list -->
-                    <div style="padding: 20px; display: flex; flex-direction: column; gap: 20px; flex: 1;">
-                        <button type="button" id="btn-check-scans" class="btn btn-primary" style="width: 100%; padding: 14px; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; border-radius: 10px; border: none; outline: none; box-shadow: var(--shadow-premium);">
-                            🔄 Check for Scan
-                        </button>
-                        
-                        <div style="display: flex; flex-direction: column; gap: 8px; flex: 1;">
-                            <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; tracking-wider; color: var(--text-secondary); margin-bottom: 4px; display: block;">
-                                Recent Captures (Last 5 Mins)
-                            </label>
-                            
-                            <div id="scans-list-container" style="border: 1px solid var(--card-border); border-radius: 12px; background: var(--input-bg); min-height: 300px; max-height: 480px; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
-                                <div style="color: var(--text-secondary); font-size: 13px; text-align: center; margin: auto; padding: 20px; line-height: 1.5;">
-                                    Click <strong>"Check for Scan"</strong> to retrieve scans captured by your mobile phone.
-                                </div>
-                            </div>
+                    <!-- Table Container -->
+                    <div class="table-container">
+                        <table id="receiving-records-table">
+                            <thead>
+                                <tr>
+                                    <th>RMS P.O.</th>
+                                    <th>Customer</th>
+                                    <th>Customer P.O.</th>
+                                    <th>Part Description</th>
+                                    <th>Received Date</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="receiving-table-body">
+                                <!-- Rows loaded dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="pagination-receive-bar" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 10px; flex-wrap: wrap;">
+                        <div class="pagination" style="margin: 0;">
+                            <button type="button" id="receiving-prev-page" class="btn btn-secondary" disabled>← Previous</button>
+                            <span id="receiving-page-indicator">Page 1 of 1</span>
+                            <button type="button" id="receiving-next-page" class="btn btn-secondary" disabled>Next →</button>
                         </div>
                     </div>
                 </section>
@@ -270,8 +283,8 @@
             <section class="editor-section card" id="receiving-editor-card">
                 <div class="empty-state" id="receiving-empty-state">
                     <div class="empty-state-icon">📥</div>
-                    <h3>No Records Selected</h3>
-                    <p>Select checkboxes from the table and click "Receive Selected" to bulk edit receiving details.</p>
+                    <h3>No Record Selected</h3>
+                    <p>Select or click a record from the table to load and edit its receiving details.</p>
                 </div>
 
                 <div class="editor-content hidden" id="receiving-editor-content">
@@ -294,9 +307,18 @@
                                 <input type="text" id="rec-courier" placeholder="e.g. UPS">
                             </div>
 
-                            <div class="form-group">
+                            <div class="form-group span-2" style="position: relative;">
                                 <label for="rec-tracking">Tracking# / Pro Number</label>
-                                <input type="text" id="rec-tracking" placeholder="e.g. 1Z0XW10...">
+                                <div style="display: flex; gap: 8px;">
+                                    <input type="text" id="rec-tracking" placeholder="e.g. 1Z0XW10..." style="flex-grow: 1; margin: 0;">
+                                    <button type="button" id="btn-check-scans-dropdown" class="btn btn-secondary" style="width: auto; white-space: nowrap; margin: 0; padding: 0 16px; display: flex; align-items: center; justify-content: center; gap: 6px; border-radius: 12px;">
+                                        🔍 Check for scans
+                                    </button>
+                                </div>
+                                <!-- Dropdown menu for scanned values -->
+                                <div id="scans-dropdown-menu" class="hidden" style="position: absolute; top: calc(100% + 4px); right: 0; left: 0; background: var(--card-bg, #ffffff); border: 1px solid var(--card-border, #e2e8f0); border-radius: 12px; box-shadow: var(--shadow-premium, 0 10px 15px -3px rgba(0,0,0,0.1)); z-index: 1000; max-height: 220px; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px;">
+                                    <!-- Scans will load here -->
+                                </div>
                             </div>
 
                             <div class="form-group">
