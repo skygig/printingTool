@@ -9,8 +9,8 @@ import dynamic from 'next/dynamic';
 const ScannerWrapper = dynamic(() => import('@/components/ScannerWrapper'), {
   ssr: false,
   loading: () => (
-    <div className="w-full aspect-video md:aspect-square max-w-md mx-auto rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center">
-      <div className="text-slate-500 text-sm flex flex-col items-center gap-2">
+    <div className="w-full aspect-video md:aspect-square max-w-md mx-auto rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center">
+      <div className="text-slate-400 text-sm flex flex-col items-center gap-2">
         <svg className="animate-spin h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
@@ -126,8 +126,8 @@ export default function ScanPage() {
 
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-slate-500 text-sm">Loading...</div>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-slate-400 text-sm">Loading...</div>
       </div>
     );
   }
@@ -135,16 +135,16 @@ export default function ScanPage() {
   const finalValue = manualValue.trim() || scannedValue.trim();
 
   return (
-    <div className="min-h-screen w-full flex flex-col bg-slate-950 text-white select-none relative overflow-x-hidden">
+    <div className="min-h-screen w-full flex flex-col bg-slate-50 text-slate-900 select-none relative overflow-x-hidden">
       {/* Header */}
-      <header className="border-b border-slate-900 bg-slate-900/50 backdrop-blur px-4 py-3 flex items-center justify-between">
+      <header className="border-b border-slate-200 bg-white/80 backdrop-blur px-4 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-2">
           <span className="text-xl">📥</span>
-          <span className="font-bold text-sm tracking-wide text-slate-200">RMS SCANNER</span>
+          <span className="font-bold text-sm tracking-wide text-slate-700">RMS SCANNER</span>
         </div>
         <button
           onClick={handleLogout}
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+          className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-slate-900 hover:bg-slate-50 transition-colors cursor-pointer"
         >
           Sign Out
         </button>
@@ -154,20 +154,20 @@ export default function ScanPage() {
       <main className="flex-1 flex flex-col p-4 space-y-6 max-w-md mx-auto w-full pb-10">
         {/* Scanner Viewport */}
         <div className="space-y-2">
-          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
+          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
             Camera Scanner
           </label>
           <ScannerWrapper onScan={handleScan} />
         </div>
 
         {/* Form controls */}
-        <div className="space-y-4 bg-slate-900/40 border border-slate-900 p-5 rounded-2xl">
+        <div className="space-y-4 bg-white border border-slate-200 p-5 rounded-2xl shadow-xl">
           {message && (
             <div
               className={`p-3 text-xs rounded-xl border text-center font-semibold ${
                 message.type === 'success'
-                  ? 'bg-green-950/20 border-green-900/50 text-green-400'
-                  : 'bg-red-950/20 border-red-900/50 text-red-400'
+                  ? 'bg-green-50 border-green-200 text-green-700'
+                  : 'bg-red-50 border-red-200 text-red-700'
               }`}
             >
               {message.text}
@@ -176,7 +176,7 @@ export default function ScanPage() {
 
           {/* Scanned/Manual Value field */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
+            <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
               Scanned / Tracking ID
             </label>
             <div className="flex gap-2">
@@ -188,7 +188,7 @@ export default function ScanPage() {
                   setScannedValue(''); // Clear scanned value if manual is edited
                 }}
                 placeholder="Scan code or enter manually..."
-                className="flex-1 px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-sm font-mono"
+                className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-mono"
               />
               {(scannedValue || manualValue) && (
                 <button
@@ -197,7 +197,7 @@ export default function ScanPage() {
                     setScannedValue('');
                     setManualValue('');
                   }}
-                  className="px-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-400 text-sm cursor-pointer"
+                  className="px-3 bg-slate-200 hover:bg-slate-300 rounded-xl text-slate-600 text-sm cursor-pointer"
                 >
                   ✕
                 </button>
@@ -210,7 +210,7 @@ export default function ScanPage() {
             type="button"
             disabled={!finalValue || submitting}
             onClick={() => handleSubmit()}
-            className="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-all shadow-lg shadow-blue-500/10 flex items-center justify-center gap-2 cursor-pointer"
           >
             {submitting ? (
               <>
@@ -228,20 +228,20 @@ export default function ScanPage() {
 
         {/* History */}
         <div className="space-y-2 flex-1">
-          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
+          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
             Recent Scans (This Session)
           </label>
-          <div className="border border-slate-900 rounded-2xl overflow-hidden bg-slate-900/20 max-h-[220px] overflow-y-auto">
+          <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm max-h-[220px] overflow-y-auto">
             {history.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-600">
+              <div className="p-8 text-center text-xs text-slate-400">
                 No items scanned in this session yet
               </div>
             ) : (
-              <div className="divide-y divide-slate-900">
+              <div className="divide-y divide-slate-100">
                 {history.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center p-3 text-sm font-mono hover:bg-slate-900/50 transition-colors">
-                    <span className="text-blue-400 truncate max-w-[200px]">{item.id}</span>
-                    <span className="text-slate-500 text-xs">{item.timestamp}</span>
+                  <div key={idx} className="flex justify-between items-center p-3 text-sm font-mono hover:bg-slate-50 transition-colors">
+                    <span className="text-blue-600 truncate max-w-[200px]">{item.id}</span>
+                    <span className="text-slate-400 text-xs">{item.timestamp}</span>
                   </div>
                 ))}
               </div>

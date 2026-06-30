@@ -36,30 +36,30 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-slate-950 px-4 py-12 relative overflow-hidden select-none">
+    <div className="min-h-screen w-full flex items-center justify-center bg-slate-50 px-4 py-12 relative overflow-hidden select-none">
       {/* Background Gradients */}
-      <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-blue-900/20 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-violet-900/20 blur-[120px] pointer-events-none" />
+      <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-blue-200/40 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-violet-200/40 blur-[120px] pointer-events-none" />
 
       <div className="w-full max-w-md z-10">
-        <div className="backdrop-blur-xl bg-slate-900/60 border border-slate-800 shadow-2xl rounded-2xl overflow-hidden p-8 space-y-6">
+        <div className="bg-white border border-slate-200/80 shadow-2xl rounded-2xl overflow-hidden p-8 space-y-6">
           <div className="text-center space-y-2">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-2xl mb-2">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-blue-50 border border-blue-100 text-blue-600 text-2xl mb-2">
               📥
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">RMS Scanner</h1>
-            <p className="text-sm text-slate-400">Sign in to scan parcel QR codes</p>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">RMS Scanner</h1>
+            <p className="text-sm text-slate-500">Sign in to scan parcel QR codes</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="p-3 text-xs text-red-400 bg-red-950/30 border border-red-900/50 rounded-lg text-center font-medium">
+              <div className="p-3 text-xs text-red-600 bg-red-50 border border-red-200/60 rounded-lg text-center font-medium">
                 {error}
               </div>
             )}
 
             <div className="space-y-1">
-              <label htmlFor="username" className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              <label htmlFor="username" className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Username
               </label>
               <input
@@ -69,12 +69,12 @@ export default function LoginPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="raj@rmsint.net"
                 required
-                className="w-full px-4 py-3 bg-slate-950/80 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/80 transition-all text-sm"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
               />
             </div>
 
             <div className="space-y-1">
-              <label htmlFor="password" className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              <label htmlFor="password" className="text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Password
               </label>
               <input
@@ -84,14 +84,14 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                className="w-full px-4 py-3 bg-slate-950/80 border border-slate-800 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/80 transition-all text-sm"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:opacity-50 text-white font-medium rounded-xl text-sm transition-colors mt-6 shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 disabled:opacity-50 text-white font-medium rounded-xl text-sm transition-colors mt-6 shadow-lg shadow-blue-500/10 flex items-center justify-center gap-2 cursor-pointer"
             >
               {loading ? (
                 <>

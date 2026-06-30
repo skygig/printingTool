@@ -10,7 +10,7 @@ interface ScannerWrapperProps {
 
 export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-950 aspect-video md:aspect-square max-w-md mx-auto w-full flex items-center justify-center">
+    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-100 aspect-video md:aspect-square max-w-md mx-auto w-full flex items-center justify-center shadow-inner">
       <BarcodeScannerComponent
         width="100%"
         height="100%"
