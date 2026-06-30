@@ -845,6 +845,61 @@ def update_records():
         return jsonify({'error': f"Failed to update records: {str(e)}"}), 500
 
 
+def load_dotenv():
+    env_path = os.path.join(BASE_DIR, '.env')
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    if '=' in line:
+                        key, val = line.split('=', 1)
+                        os.environ[key.strip()] = val.strip()
+        except Exception as e:
+            print(f"Error loading env file: {e}")
+
+load_dotenv()
+
+
+@app.route('/api/check-scans')
+def check_scans():
+    from pymongo import MongoClient
+    from datetime import datetime, timedelta
+    
+    mongo_uri = os.environ.get('MONGODB_URI')
+    db_name = os.environ.get('MONGODB_DB', 'scanner_db')
+    if not mongo_uri:
+        return jsonify({'error': 'MongoDB MONGODB_URI not configured in .env file.'}), 500
+        
+    try:
+        client = MongoClient(mongo_uri)
+        db = client[db_name]
+        collection = db['scans']
+        
+        # Scanned in the last 5 minutes (UTC)
+        five_mins_ago = datetime.utcnow() - timedelta(minutes=5)
+        
+        # Find scans and sort newest first
+        scans_cursor = collection.find({'scannedAt': {'$gte': five_mins_ago}}).sort('scannedAt', -1)
+        
+        scans = []
+        for doc in scans_cursor:
+            scans.append({
+                'id': str(doc['_id']),
+                'trackingId': doc.get('trackingId', ''),
+                'scannedAt': doc.get('scannedAt').isoformat() if isinstance(doc.get('scannedAt'), datetime) else str(doc.get('scannedAt')),
+                'username': doc.get('username', '')
+            })
+            
+        client.close()
+        return jsonify({'success': True, 'scans': scans})
+    except Exception as e:
+        print(f"Error querying MongoDB: {e}")
+        return jsonify({'error': f"Database query failed: {str(e)}"}), 500
+
+
 @app.route('/api/generated-files')
 def get_generated_files():
     try:

@@ -229,76 +229,39 @@
         <main id="receiving-page" class="dashboard-layout hidden">
             <!-- Left Side Column Container -->
             <div class="dashboard-left-col">
-                <!-- Left Side: Table & Search -->
-                <section class="records-section card">
+                <!-- Left Side: Mobile Scanner Integration -->
+                <section class="records-section card" style="display: flex; flex-direction: column; height: 100%;">
                     <div class="card-header">
-                        <h2>Receiving Inventory</h2>
-                        <div class="search-box">
-                            <span class="search-icon">🔍</span>
-                            <input type="text" id="receiving-search-input" placeholder="Search by PO, RMS P.O, Part, Customer, Date...">
-                        </div>
+                        <h2>Receiving Scanner Integration</h2>
                     </div>
 
-                    <!-- Database Control Info -->
+                    <!-- Database Control Info (Display only, picker moved or kept compact) -->
                     <div class="db-control-bar">
                         <div class="db-main-row">
                             <div class="db-info">
                                 <span class="db-icon">📊</span>
                                 <span id="receiving-db-filename" class="db-filename">Loading database file...</span>
                             </div>
-                            <div class="db-actions" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                                <span id="receiving-selected-count" style="font-size: 13px; font-weight: 600; color: var(--primary-color); margin-right: 12px;">0 records selected</span>
-                                <button id="receiving-btn-pick-file" class="btn btn-secondary btn-sm" type="button">
-                                    📁 Pick File
-                                </button>
-                                <input type="file" id="receiving-db-file-input" accept=".xlsx,.xls,.csv" style="display: none;">
-                            </div>
-                        </div>
-                        <!-- Excel-specific controls: Sheet picker and Header row input -->
-                        <div id="receiving-excel-actions-row" class="excel-actions-row hidden">
-                            <div class="excel-action-item">
-                                <span class="control-label">📋 Sheet:</span>
-                                <select id="receiving-sheet-select" class="sheet-select">
-                                    <option value="">Select Sheet...</option>
-                                </select>
-                            </div>
-                            <div class="excel-action-item">
-                                <span class="control-label">🔝 Header Row:</span>
-                                <input type="number" id="receiving-header-row-input" class="header-row-input" min="1" value="1">
-                            </div>
                         </div>
                     </div>
 
-                    <!-- Table Container -->
-                    <div class="table-container">
-                        <table id="receiving-records-table">
-                            <thead>
-                                <tr>
-                                    <th style="width: 50px; text-align: center;"><input type="checkbox" id="receiving-select-all" style="cursor: pointer; width: 16px; height: 16px;"></th>
-                                    <th>RMS P.O.</th>
-                                    <th>Customer</th>
-                                    <th>Customer P.O.</th>
-                                    <th>Part Description</th>
-                                    <th>Received Date</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="receiving-table-body">
-                                <!-- Rows loaded dynamically -->
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- Pagination & Receive Button -->
-                    <div class="pagination-receive-bar" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 10px; flex-wrap: wrap;">
-                        <div class="pagination" style="margin: 0;">
-                            <button id="receiving-prev-page" class="btn btn-secondary" disabled>← Previous</button>
-                            <span id="receiving-page-indicator">Page 1 of 1</span>
-                            <button id="receiving-next-page" class="btn btn-secondary" disabled>Next →</button>
-                        </div>
-                        <button type="button" id="btn-receive-action" class="btn btn-primary" style="width: auto; min-width: 160px;" disabled>
-                            📥 Receive Selected
+                    <!-- Scan Trigger CTA and list -->
+                    <div style="padding: 20px; display: flex; flex-direction: column; gap: 20px; flex: 1;">
+                        <button type="button" id="btn-check-scans" class="btn btn-primary" style="width: 100%; padding: 14px; font-size: 16px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; border-radius: 10px; border: none; outline: none; box-shadow: var(--shadow-premium);">
+                            🔄 Check for Scan
                         </button>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 8px; flex: 1;">
+                            <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; tracking-wider; color: var(--text-secondary); margin-bottom: 4px; display: block;">
+                                Recent Captures (Last 5 Mins)
+                            </label>
+                            
+                            <div id="scans-list-container" style="border: 1px solid var(--card-border); border-radius: 12px; background: var(--input-bg); min-height: 300px; max-height: 480px; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+                                <div style="color: var(--text-secondary); font-size: 13px; text-align: center; margin: auto; padding: 20px; line-height: 1.5;">
+                                    Click <strong>"Check for Scan"</strong> to retrieve scans captured by your mobile phone.
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </section>
             </div>

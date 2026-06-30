@@ -211,11 +211,8 @@ window.addEventListener('DOMContentLoaded', () => {
     const btnOpenReport = document.getElementById('btn-open-report');
     const recReportTextarea = document.getElementById('rec-report-text');
     
-    if (recSearchInput) recSearchInput.addEventListener('input', handleReceivingSearch);
-    if (recPrevPageBtn) recPrevPageBtn.addEventListener('click', () => changeReceivingPage(-1));
-    if (recNextPageBtn) recNextPageBtn.addEventListener('click', () => changeReceivingPage(1));
-    if (recSelectAllCheckbox) recSelectAllCheckbox.addEventListener('change', handleReceivingSelectAllChange);
-    if (btnReceiveAction) btnReceiveAction.addEventListener('click', handleReceiveAction);
+    const btnCheckScans = document.getElementById('btn-check-scans');
+    if (btnCheckScans) btnCheckScans.addEventListener('click', checkRecentScans);
     
     if (recForm) recForm.addEventListener('submit', handleReceivingSave);
     if (btnUploadPhoto) btnUploadPhoto.addEventListener('click', handleUploadPhotoClick);
@@ -1270,148 +1267,192 @@ function handleOrderEntrySubmit(e) {
 // ==========================================
 
 // Render Receiving Table
+// Render Dummy Table (kept for compatibility)
 function renderReceivingTable() {
-    const recTableBody = document.getElementById('receiving-table-body');
-    const recPageIndicator = document.getElementById('receiving-page-indicator');
-    const recPrevPageBtn = document.getElementById('receiving-prev-page');
-    const recNextPageBtn = document.getElementById('receiving-next-page');
-    const selectAllCheckbox = document.getElementById('receiving-select-all');
-    const receiveActionBtn = document.getElementById('btn-receive-action');
-    
-    if (!recTableBody) return;
-    
-    // Set filtered records based on search
-    const searchVal = document.getElementById('receiving-search-input').value.toLowerCase().trim();
-    if (searchVal === '') {
-        receivingFilteredRecords = [...records];
-    } else {
-        receivingFilteredRecords = records.filter(rec => {
-            return (
-                (rec.rms_po && rec.rms_po.toLowerCase().includes(searchVal)) ||
-                (rec.customer_po && rec.customer_po.toLowerCase().includes(searchVal)) ||
-                (rec.customer && rec.customer.toLowerCase().includes(searchVal)) ||
-                (rec.vendor && rec.vendor.toLowerCase().includes(searchVal)) ||
-                (rec.part_received && rec.part_received.toLowerCase().includes(searchVal)) ||
-                (rec.outbound_date && rec.outbound_date.toLowerCase().includes(searchVal)) ||
-                (rec.inbound_date && rec.inbound_date.toLowerCase().includes(searchVal))
-            );
-        });
-    }
-    
-    if (receivingFilteredRecords.length === 0) {
-        recTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 30px;">No records found matching search.</td></tr>`;
-        recPageIndicator.textContent = 'Page 0 of 0';
-        recPrevPageBtn.disabled = true;
-        recNextPageBtn.disabled = true;
-        receiveActionBtn.disabled = true;
-        return;
-    }
-    
-    const startIdx = (receivingCurrentPage - 1) * rowsPerPage;
-    const endIdx = Math.min(startIdx + rowsPerPage, receivingFilteredRecords.length);
-    const totalPages = Math.ceil(receivingFilteredRecords.length / rowsPerPage);
-    
-    recPageIndicator.textContent = `Page ${receivingCurrentPage} of ${totalPages}`;
-    recPrevPageBtn.disabled = receivingCurrentPage === 1;
-    recNextPageBtn.disabled = receivingCurrentPage === totalPages;
-    
-    // Check if all page records are checked
-    const pageRecords = receivingFilteredRecords.slice(startIdx, endIdx);
-    const allChecked = pageRecords.every(r => selectedReceivingRowIds.has(r.row_id));
-    if (selectAllCheckbox) {
-        selectAllCheckbox.checked = allChecked && pageRecords.length > 0;
-    }
-    
-    recTableBody.innerHTML = '';
-    
-    for (let i = startIdx; i < endIdx; i++) {
-        const rec = receivingFilteredRecords[i];
-        const tr = document.createElement('tr');
-        
-        const isChecked = selectedReceivingRowIds.has(rec.row_id);
-        if (isChecked) {
-            tr.classList.add('receiving-selected');
-        }
-        
-        const statusClass = rec.invoice_status.toLowerCase() === 'invoiced' ? 'invoiced' : 'pending';
-        const statusLabel = rec.invoice_status || 'Pending';
-        const shortDesc = rec.part_received.length > 35 ? rec.part_received.substring(0, 35) + '...' : rec.part_received;
-        
-        tr.innerHTML = `
-            <td class="receiving-checkbox-cell" onclick="event.stopPropagation();">
-                <input type="checkbox" class="row-select-checkbox" data-row-id="${rec.row_id}" ${isChecked ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
-            </td>
-            <td><strong>${rec.rms_po || 'N/A'}</strong></td>
-            <td>${rec.customer || 'N/A'}</td>
-            <td>${rec.customer_po || 'N/A'}</td>
-            <td title="${rec.part_received}">${shortDesc}</td>
-            <td>${rec.received_date || rec.inbound_date || 'N/A'}</td>
-            <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
-        `;
-        
-        const checkbox = tr.querySelector('.row-select-checkbox');
-        checkbox.addEventListener('change', (e) => {
-            if (e.target.checked) {
-                selectedReceivingRowIds.add(rec.row_id);
-                tr.classList.add('receiving-selected');
-            } else {
-                selectedReceivingRowIds.delete(rec.row_id);
-                tr.classList.remove('receiving-selected');
-            }
-            updateReceivingSelectionControls();
-        });
-        
-        tr.addEventListener('click', () => {
-            checkbox.checked = !checkbox.checked;
-            checkbox.dispatchEvent(new Event('change'));
-        });
-        
-        recTableBody.appendChild(tr);
-    }
-    
-    updateReceivingSelectionControls();
+    // Retrieve scans on page load/switch automatically
+    checkRecentScans();
 }
 
 function updateReceivingSelectionControls() {
-    const selectedCountSpan = document.getElementById('receiving-selected-count');
-    const receiveActionBtn = document.getElementById('btn-receive-action');
-    if (selectedCountSpan) {
-        selectedCountSpan.textContent = `${selectedReceivingRowIds.size} records selected`;
-    }
-    if (receiveActionBtn) {
-        receiveActionBtn.disabled = selectedReceivingRowIds.size === 0;
-    }
+    // No-op
 }
 
 function handleReceivingSearch() {
-    receivingCurrentPage = 1;
-    renderReceivingTable();
+    // No-op
 }
 
 function changeReceivingPage(direction) {
-    const totalPages = Math.ceil(receivingFilteredRecords.length / rowsPerPage);
-    const newPage = receivingCurrentPage + direction;
-    
-    if (newPage >= 1 && newPage <= totalPages) {
-        receivingCurrentPage = newPage;
-        renderReceivingTable();
-    }
+    // No-op
 }
 
 function handleReceivingSelectAllChange(e) {
-    const isChecked = e.target.checked;
-    const startIdx = (receivingCurrentPage - 1) * rowsPerPage;
-    const endIdx = Math.min(startIdx + rowsPerPage, receivingFilteredRecords.length);
+    // No-op
+}
+
+// Check scans inside MongoDB
+function checkRecentScans() {
+    const scansListContainer = document.getElementById('scans-list-container');
+    const btnCheckScans = document.getElementById('btn-check-scans');
     
-    for (let i = startIdx; i < endIdx; i++) {
-        const rec = receivingFilteredRecords[i];
-        if (isChecked) {
-            selectedReceivingRowIds.add(rec.row_id);
-        } else {
-            selectedReceivingRowIds.delete(rec.row_id);
-        }
+    if (!scansListContainer) return;
+    
+    // Disable button & animate status
+    if (btnCheckScans) {
+        btnCheckScans.disabled = true;
+        btnCheckScans.innerHTML = `⏳ Checking for Scans...`;
     }
-    renderReceivingTable();
+    
+    scansListContainer.innerHTML = `
+        <div style="color: var(--text-secondary); font-size: 13px; text-align: center; margin: auto; padding: 20px;">
+            Fetching scans from MongoDB Atlas...
+        </div>
+    `;
+    
+    fetch('/api/check-scans')
+        .then(res => res.json())
+        .then(data => {
+            if (btnCheckScans) {
+                btnCheckScans.disabled = false;
+                btnCheckScans.innerHTML = `🔄 Check for Scan`;
+            }
+            
+            if (data.success) {
+                renderScansList(data.scans);
+            } else {
+                scansListContainer.innerHTML = `
+                    <div style="color: var(--accent-error, #ef4444); font-size: 13px; text-align: center; margin: auto; padding: 20px;">
+                        Error: ${data.error || "Failed to load scans"}
+                    </div>
+                `;
+                showToast("Scan Fetch Failed", data.error || "Check backend connection", null, true);
+            }
+        })
+        .catch(err => {
+            if (btnCheckScans) {
+                btnCheckScans.disabled = false;
+                btnCheckScans.innerHTML = `🔄 Check for Scan`;
+            }
+            scansListContainer.innerHTML = `
+                <div style="color: var(--accent-error, #ef4444); font-size: 13px; text-align: center; margin: auto; padding: 20px;">
+                    Network error fetching scans.
+                </div>
+            `;
+            showToast("Network Error", "Could not reach desktop server", null, true);
+            console.error("Fetch scans error:", err);
+        });
+}
+
+// Render the list of scans in the container
+function renderScansList(scans) {
+    const scansListContainer = document.getElementById('scans-list-container');
+    if (!scansListContainer) return;
+    
+    if (!scans || scans.length === 0) {
+        scansListContainer.innerHTML = `
+            <div style="color: var(--text-secondary); font-size: 13px; text-align: center; margin: auto; padding: 20px; line-height: 1.5;">
+                No scans found in the last 5 minutes.<br>
+                <span style="font-size: 11px; opacity: 0.8;">Scan a barcode on your mobile scanner app first.</span>
+            </div>
+        `;
+        return;
+    }
+    
+    scansListContainer.innerHTML = '';
+    
+    scans.forEach(scan => {
+        const item = document.createElement('div');
+        // Simple list item styling using existing theme variables
+        item.style.padding = '12px';
+        item.style.background = 'var(--card-bg)';
+        item.style.border = '1px solid var(--card-border)';
+        item.style.borderRadius = '8px';
+        item.style.cursor = 'pointer';
+        item.style.display = 'flex';
+        item.style.justifyContent = 'space-between';
+        item.style.alignItems = 'center';
+        item.style.transition = 'all 0.2s';
+        item.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
+        
+        // Hover effects in JS
+        item.addEventListener('mouseenter', () => {
+            item.style.borderColor = 'var(--primary-color)';
+            item.style.transform = 'translateY(-1px)';
+            item.style.boxShadow = '0 4px 6px rgba(0,0,0,0.05)';
+        });
+        item.addEventListener('mouseleave', () => {
+            item.style.borderColor = 'var(--card-border)';
+            item.style.transform = 'translateY(0)';
+            item.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
+        });
+        
+        // Match scan timestamp to local format
+        let localTime = '';
+        try {
+            const date = new Date(scan.scannedAt);
+            localTime = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        } catch(e) {
+            localTime = scan.scannedAt;
+        }
+        
+        item.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 4px; overflow: hidden; margin-right: 12px; text-align: left;">
+                <span style="font-family: monospace; font-weight: 700; font-size: 14px; color: var(--text-primary); text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
+                    ${scan.trackingId}
+                </span>
+                <span style="font-size: 11px; color: var(--text-secondary); opacity: 0.8;">
+                    Scanned by ${scan.username || 'User'}
+                </span>
+            </div>
+            <span style="font-size: 11px; font-weight: 600; color: var(--primary-color); white-space: nowrap;">
+                ${localTime}
+            </span>
+        `;
+        
+        // Click listener for scan item
+        item.addEventListener('click', () => {
+            handleScanClick(scan.trackingId);
+        });
+        
+        scansListContainer.appendChild(item);
+    });
+}
+
+// Clean code comparison helper
+function matchTrackingCode(dbCode, scanCode) {
+    if (!dbCode || !scanCode) return false;
+    // Strip non-alphanumeric chars and compare lower case
+    const cleanDb = dbCode.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanScan = scanCode.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (cleanDb === '' || cleanScan === '') return false;
+    return cleanDb.includes(cleanScan) || cleanScan.includes(cleanDb);
+}
+
+// Handle scan click to match in DB
+function handleScanClick(trackingId) {
+    if (!records || records.length === 0) {
+        showToast("Database Empty", "Please load a database or Excel sheet first.", null, true);
+        return;
+    }
+    
+    // Search records for matching Tracking/Pro# (represented by inbound_tracking)
+    const matches = records.filter(rec => {
+        return matchTrackingCode(rec.inbound_tracking, trackingId);
+    });
+    
+    if (matches.length > 0) {
+        // Highlight matching records and load in editor
+        selectedReceivingRowIds.clear();
+        matches.forEach(rec => {
+            selectedReceivingRowIds.add(rec.row_id);
+        });
+        
+        // Trigger the standard receive action which populates the editor card
+        handleReceiveAction();
+        
+        showToast("Tracking Match Found", `Matched scan with ${matches.length} record(s) in sheet. Loaded in Editor.`, null, false);
+    } else {
+        showToast("No Match Found", `Could not find tracking ID "${trackingId}" in Trackin/Pro# column.`, null, true);
+    }
 }
 
 // On clicking "Receive Selected"
