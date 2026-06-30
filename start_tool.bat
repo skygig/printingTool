@@ -16,10 +16,16 @@ if errorlevel 1 goto :venv_error
 
 echo Installing dependencies...
 call venv\Scripts\pip install --upgrade pip
-call venv\Scripts\pip install Flask openpyxl reportlab python-docx werkzeug
+call venv\Scripts\pip install Flask openpyxl reportlab python-docx werkzeug pymongo dnspython
 if errorlevel 1 goto :install_error
 
 :run_app
+:: Check and auto-install database dependencies if missing
+call venv\Scripts\python -c "import pymongo" 2>nul
+if errorlevel 1 (
+    echo Database dependencies not found. Installing pymongo and dnspython...
+    call venv\Scripts\pip install pymongo dnspython
+)
 echo Starting Flask web server on port 5001...
 echo This window will remain active. To stop the server, press Ctrl+C.
 echo.
