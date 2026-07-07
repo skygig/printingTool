@@ -1,5 +1,4 @@
 import os
-import csv
 import sys
 import json
 import openpyxl
@@ -46,10 +45,10 @@ def load_db_config():
             print(f"Error loading db_config.json: {e}")
             
     # Default fallback if config load fails or config doesn't exist
-    CURRENT_DB_NAME = "Warehouse Tracking sheet (1).xlsx - Main.csv"
+    CURRENT_DB_NAME = "Warehouse_Tracking_sheet_1.xlsx"
     CURRENT_DB_PATH = os.path.join(BASE_DIR, CURRENT_DB_NAME)
-    CURRENT_SHEET = None
-    EXCEL_SHEETS = []
+    CURRENT_SHEET = "Main"
+    EXCEL_SHEETS = ["Main"]
     CURRENT_HEADER_ROW = 1
 
 
@@ -75,91 +74,6 @@ OUTPUTS_DIR = os.path.join(BASE_DIR, "Outputs")
 
 # Ensure outputs directory exists
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
-
-def parse_csv_database(file_path=None):
-    """
-    Parses the warehouse tracking CSV file.
-    Maps columns by absolute index to avoid duplicate headers.
-    """
-    if file_path is None:
-        file_path = CURRENT_DB_PATH
-        
-    records = []
-    if not os.path.exists(file_path):
-        print(f"Warning: CSV file not found at {file_path}")
-        return records
-        
-    try:
-        with open(file_path, mode='r', encoding='utf-8-sig', errors='ignore') as f:
-            reader = csv.reader(f)
-            headers = next(reader, None)
-            if not headers:
-                return records
-                
-            headers_clean = [h.strip().lower() for h in headers]
-            boxes_idx = next((i for i, h in enumerate(headers_clean) if "boxes" in h or "no. of boxes" in h), -1)
-            photo_idx = next((i for i, h in enumerate(headers_clean) if "photo" in h), -1)
-            report_idx = next((i for i, h in enumerate(headers_clean) if "report" in h), -1)
-            
-            for idx, row in enumerate(reader):
-                if not row or all(cell.strip() == "" for cell in row):
-                    continue # Skip empty rows
-                
-                # Pad row if it is short
-                max_len = max(34, boxes_idx + 1, photo_idx + 1, report_idx + 1)
-                if len(row) < max_len:
-                    row = row + [""] * (max_len - len(row))
-                    
-                # Create mapped dictionary using indexes
-                record = {
-                    'row_id': idx + 2, # Line number in CSV (1-indexed, +1 for header)
-                    'inbound_date': row[0].strip(),
-                    'rms_po': row[1].strip(),
-                    'part_received': row[2].strip(),
-                    'vendor': row[3].strip(),
-                    'promise_date': row[4].strip(),
-                    'inbound_notes': row[5].strip(),
-                    'vendor_contact': row[6].strip(),
-                    'received_date': row[7].strip(),
-                    'inbound_carrier': row[8].strip(),
-                    'inbound_tracking': row[9].strip(),
-                    'inbound_l': row[10].strip(),
-                    'inbound_w': row[11].strip(),
-                    'inbound_h': row[12].strip(),
-                    'inbound_weight': row[13].strip(),
-                    'inbound_charges': row[14].strip(),
-                    'outbound_date': row[15].strip(),
-                    'customer': row[16].strip(),
-                    'customer_po': row[17].strip(),
-                    'rms_invoice': row[18].strip(),
-                    'ship_to': row[19].strip(),
-                    'line_num': row[20].strip(),
-                    'hs_code': row[21].strip(),
-                    'shipped_date': row[22].strip(),
-                    'invoice_status': row[23].strip(),
-                    'outbound_l': row[24].strip(),
-                    'outbound_w': row[25].strip(),
-                    'outbound_h': row[26].strip(),
-                    'outbound_weight': row[27].strip(),
-                    'outbound_carrier': row[28].strip(),
-                    'outbound_tracking': row[29].strip(),
-                    'crating_charges': row[30].strip(),
-                    'shipping_charges': row[31].strip(),
-                    'customer_contact': row[32].strip(),
-                    'outbound_notes': row[33].strip(),
-                    'no_of_boxes': row[boxes_idx].strip() if boxes_idx != -1 else "",
-                    'photo': row[photo_idx].strip() if photo_idx != -1 else "",
-                    'report': row[report_idx].strip() if report_idx != -1 else "",
-                }
-                
-                # Check for at least some identifying data
-                if record['rms_po'] or record['customer_po'] or record['part_received']:
-                    records.append(record)
-                    
-    except Exception as e:
-        print(f"Error parsing CSV: {e}")
-        
-    return records
 
 
 def parse_excel_database(file_path, sheet_name=None, header_row=1):
@@ -236,7 +150,7 @@ def parse_excel_database(file_path, sheet_name=None, header_row=1):
                 'inbound_h': row[12].strip(),
                 'inbound_weight': row[13].strip(),
                 'inbound_charges': row[14].strip(),
-                'outbound_date': row[15].strip(),
+                'outbound_date': row[15].strip().replace(" 00:00:00", ""),
                 'customer': row[16].strip(),
                 'customer_po': row[17].strip(),
                 'rms_invoice': row[18].strip(),
@@ -266,6 +180,7 @@ def parse_excel_database(file_path, sheet_name=None, header_row=1):
     except Exception as e:
         print(f"Error parsing Excel: {e}")
         
+    records.reverse()
     return records
 
 
@@ -276,9 +191,7 @@ def load_current_database():
         return []
         
     ext = os.path.splitext(CURRENT_DB_PATH)[1].lower()
-    if ext == '.csv':
-        return parse_csv_database(CURRENT_DB_PATH)
-    elif ext in ['.xlsx', '.xls']:
+    if ext in ['.xlsx', '.xls']:
         return parse_excel_database(CURRENT_DB_PATH, CURRENT_SHEET, CURRENT_HEADER_ROW)
     return []
 
@@ -336,16 +249,7 @@ def upload_database():
         EXCEL_SHEETS = []
         CURRENT_HEADER_ROW = 1
         
-        if ext == '.csv':
-            records = parse_csv_database(file_path)
-            save_db_config()
-            return jsonify({
-                'success': True,
-                'type': 'csv',
-                'filename': filename,
-                'records': records
-            })
-        elif ext in ['.xlsx', '.xls']:
+        if ext in ['.xlsx', '.xls']:
             try:
                 wb = openpyxl.load_workbook(file_path, read_only=True)
                 sheets = wb.sheetnames
@@ -371,7 +275,7 @@ def upload_database():
             except Exception as e:
                 return jsonify({'error': f"Failed to read Excel workbook: {str(e)}"}), 500
         else:
-            return jsonify({'error': 'Unsupported file format. Please upload CSV or Excel (.xlsx, .xls) files.'}), 400
+            return jsonify({'error': 'Unsupported file format. Please upload Excel (.xlsx, .xls) files.'}), 400
 
 
 @app.route('/api/load-sheet', methods=['POST'])
@@ -380,9 +284,6 @@ def load_sheet():
     data = request.json
     if not data:
         return jsonify({'error': 'No data provided'}), 400
-        
-    if CURRENT_DB_NAME.endswith('.csv'):
-        return jsonify({'error': 'Active database is a CSV, sheet selection is not supported.'}), 400
         
     # Switch sheet if provided
     sheet_name = data.get('sheet_name', CURRENT_SHEET)
@@ -458,22 +359,7 @@ def save_order():
     
     ext = os.path.splitext(CURRENT_DB_PATH)[1].lower()
     try:
-        if ext == '.csv':
-            # Check if file has a trailing newline
-            with open(CURRENT_DB_PATH, 'rb+') as f:
-                f.seek(0, os.SEEK_END)
-                size = f.tell()
-                if size > 0:
-                    f.seek(size - 1)
-                    last_char = f.read(1)
-                    if last_char != b'\n' and last_char != b'\r':
-                        f.write(b'\n')
-                        
-            with open(CURRENT_DB_PATH, mode='a', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                writer.writerow(row_data)
-                
-        elif ext in ['.xlsx', '.xls']:
+        if ext in ['.xlsx', '.xls']:
             wb = openpyxl.load_workbook(CURRENT_DB_PATH)
             if not CURRENT_SHEET or CURRENT_SHEET not in wb.sheetnames:
                 sheet = wb.active
@@ -597,58 +483,6 @@ def generate_documents():
         return jsonify({'error': str(e)}), 500
 
 
-def ensure_receiving_headers_csv(file_path):
-    if not os.path.exists(file_path):
-        return -1, -1, -1
-        
-    with open(file_path, mode='r', encoding='utf-8-sig', errors='ignore') as f:
-        reader = csv.reader(f)
-        rows = list(reader)
-        
-    if not rows:
-        return -1, -1, -1
-        
-    headers = rows[0]
-    headers_clean = [h.strip().lower() for h in headers]
-    
-    boxes_idx = -1
-    photo_idx = -1
-    report_idx = -1
-    
-    for i, h in enumerate(headers_clean):
-        if "boxes" in h or "no. of boxes" in h:
-            boxes_idx = i
-        elif "photo" in h:
-            photo_idx = i
-        elif "report" in h:
-            report_idx = i
-            
-    modified = False
-    if boxes_idx == -1:
-        headers.append("No. of boxes")
-        boxes_idx = len(headers) - 1
-        modified = True
-    if photo_idx == -1:
-        headers.append("photo")
-        photo_idx = len(headers) - 1
-        modified = True
-    if report_idx == -1:
-        headers.append("Report")
-        report_idx = len(headers) - 1
-        modified = True
-        
-    if modified:
-        # Pad all data rows to match headers length
-        for r in range(1, len(rows)):
-            if len(rows[r]) < len(headers):
-                rows[r] = rows[r] + [""] * (len(headers) - len(rows[r]))
-        # Write back
-        with open(file_path, mode='w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerows(rows)
-            
-    return boxes_idx, photo_idx, report_idx
-
 
 def ensure_receiving_headers_excel(sheet, header_row_idx):
     # Find existing headers
@@ -684,58 +518,6 @@ def ensure_receiving_headers_excel(sheet, header_row_idx):
         report_idx = curr_len
         
     return boxes_idx, photo_idx, report_idx
-
-
-def update_csv_records(file_path, updates):
-    boxes_idx, photo_idx, report_idx = ensure_receiving_headers_csv(file_path)
-    
-    with open(file_path, mode='r', encoding='utf-8-sig', errors='ignore') as f:
-        reader = csv.reader(f)
-        rows = list(reader)
-        
-    for update in updates:
-        row_id = int(update['row_id'])
-        row_idx = row_id - 1
-        if row_idx < 0 or row_idx >= len(rows):
-            continue
-            
-        row = rows[row_idx]
-        
-        # Pad row to match max index
-        max_idx = max(33, boxes_idx, photo_idx, report_idx)
-        if len(row) <= max_idx:
-            row = row + [""] * (max_idx - len(row) + 1)
-            
-        # Update fields
-        if 'received_date' in update:
-            row[7] = update['received_date']
-        if 'inbound_carrier' in update:
-            row[8] = update['inbound_carrier']
-        if 'inbound_tracking' in update:
-            row[9] = update['inbound_tracking']
-            
-        if 'inbound_l' in update:
-            row[10] = update['inbound_l']
-        if 'inbound_w' in update:
-            row[11] = update['inbound_w']
-        if 'inbound_h' in update:
-            row[12] = update['inbound_h']
-            
-        if 'inbound_weight' in update:
-            row[13] = update['inbound_weight']
-            
-        if boxes_idx != -1 and 'no_of_boxes' in update:
-            row[boxes_idx] = update['no_of_boxes']
-        if photo_idx != -1 and 'photo' in update:
-            row[photo_idx] = update['photo']
-        if report_idx != -1 and 'report' in update:
-            row[report_idx] = update['report']
-            
-        rows[row_idx] = row
-        
-    with open(file_path, mode='w', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerows(rows)
 
 
 def update_excel_records(file_path, sheet_name, header_row_idx, updates):
@@ -832,9 +614,7 @@ def update_records():
     updates = data['updates']
     ext = os.path.splitext(CURRENT_DB_PATH)[1].lower()
     try:
-        if ext == '.csv':
-            update_csv_records(CURRENT_DB_PATH, updates)
-        elif ext in ['.xlsx', '.xls']:
+        if ext in ['.xlsx', '.xls']:
             update_excel_records(CURRENT_DB_PATH, CURRENT_SHEET, CURRENT_HEADER_ROW, updates)
         else:
             return jsonify({'error': 'Unsupported file format.'}), 400
@@ -866,7 +646,7 @@ load_dotenv()
 @app.route('/api/check-scans')
 def check_scans():
     from pymongo import MongoClient
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     
     mongo_uri = os.environ.get('MONGODB_URI')
     db_name = os.environ.get('MONGODB_DB', 'scanner_db')
@@ -878,8 +658,8 @@ def check_scans():
         db = client[db_name]
         collection = db['scans']
         
-        # Scanned in the last 5 minutes (UTC)
-        five_mins_ago = datetime.utcnow() - timedelta(minutes=5)
+        # Scanned in the last 5 minutes (timezone-aware UTC)
+        five_mins_ago = datetime.now(timezone.utc) - timedelta(minutes=5)
         
         # Find scans and sort newest first
         scans_cursor = collection.find({'scannedAt': {'$gte': five_mins_ago}}).sort('scannedAt', -1)

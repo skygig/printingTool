@@ -401,8 +401,9 @@ function renderTable() {
             tr.classList.add('selected');
         }
         
-        const statusClass = rec.invoice_status.toLowerCase() === 'invoiced' ? 'invoiced' : 'pending';
-        const statusLabel = rec.invoice_status || 'Pending';
+        const invoiceStatus = (rec.invoice_status || '').trim();
+        const statusClass = invoiceStatus.toLowerCase() === 'invoiced' ? 'invoiced' : 'pending';
+        const statusLabel = invoiceStatus || 'Not Invoiced';
         
         // Truncate desc for table
         const shortDesc = rec.part_received.length > 35 ? rec.part_received.substring(0, 35) + '...' : rec.part_received;
@@ -1151,7 +1152,7 @@ function prefillOrderEntryDefaults() {
         outboundDateInput.value = getFormattedToday();
     }
     if (statusSelect) {
-        statusSelect.value = 'Pending';
+        statusSelect.value = '';
     }
     if (lineNumInput) {
         lineNumInput.value = '1';
@@ -1338,8 +1339,9 @@ function renderReceivingTable() {
             tr.classList.add('receiving-selected');
         }
         
-        const statusClass = rec.invoice_status.toLowerCase() === 'invoiced' ? 'invoiced' : 'pending';
-        const statusLabel = rec.invoice_status || 'Pending';
+        const invoiceStatus = (rec.invoice_status || '').trim();
+        const statusClass = invoiceStatus.toLowerCase() === 'invoiced' ? 'invoiced' : 'pending';
+        const statusLabel = invoiceStatus || 'Not Invoiced';
         const shortDesc = rec.part_received.length > 35 ? rec.part_received.substring(0, 35) + '...' : rec.part_received;
         
         tr.innerHTML = `

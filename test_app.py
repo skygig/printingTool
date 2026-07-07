@@ -1,29 +1,14 @@
 import os
 import json
 import unittest
-from app import app, parse_csv_database
+from app import app
 
 class TestDocumentGeneratorApp(unittest.TestCase):
     def setUp(self):
         self.app = app.test_client()
         self.app.testing = True
 
-    def test_csv_parsing(self):
-        print("Testing CSV database parsing...")
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        csv_path = os.path.join(base_dir, "Warehouse_Tracking_sheet_1.xlsx_-_Main.csv")
-        if not os.path.exists(csv_path):
-            csv_path = os.path.join(base_dir, "Warehouse Tracking sheet (1).xlsx - Main.csv")
-        records = parse_csv_database(csv_path)
-        self.assertIsNotNone(records)
-        self.assertTrue(len(records) > 0, "No records found in CSV database.")
-        print(f"  Successfully parsed {len(records)} records.")
-        # Check that some headers mapped correctly
-        first_rec = records[0]
-        self.assertIn('rms_po', first_rec)
-        self.assertIn('customer_po', first_rec)
-        self.assertIn('part_received', first_rec)
-        print("  CSV structure mapping verified.")
+
 
     def test_api_records_endpoint(self):
         print("Testing /api/records endpoint...")
@@ -157,34 +142,21 @@ class TestDocumentGeneratorApp(unittest.TestCase):
         self.assertIn('sheets', status)
         print("  /api/db-status verified.")
         
-        # Test 2: Upload a sample CSV database
+        # Test 2: Verify CSV upload is rejected
         import io
-        csv_content = (
-            "Inbound Date,RMS P.O.,Part Received/QTY/PN,Vendor,Promise Date,Inbound Notes,Vendor Contact,Received Date,Inbound Carrier,Inbound Tracking,Inbound L,Inbound W,Inbound H,Inbound Weight,Inbound Charges,Outbound Date,Customer,Customer P.O.,RMS Invoice,Ship To,Line Num,HS Code,Shipped Date,Invoice Status,Outbound L,Outbound W,Outbound H,Outbound Weight,Outbound Carrier,Outbound Tracking,Crating Charges,Shipping Charges,Customer Contact,Outbound Notes\n"
-            "06/07/2026,9999,PART_A QTY 10 PN 123-456,VENDOR_A,,,,,,,,,,,,,,06/09/2026,CUST_A,42300000000,,,,,,,,,,,,,,,\n"
-        )
-        
+        csv_content = "Inbound Date,RMS P.O.\n06/07/2026,9999\n"
         data = {
             'file': (io.BytesIO(csv_content.encode('utf-8')), 'test_mock_db.csv')
         }
-        
         response = self.app.post(
             '/api/upload-database',
             data=data,
             content_type='multipart/form-data'
         )
-        self.assertEqual(response.status_code, 200)
-        upload_res = json.loads(response.data)
-        self.assertTrue(upload_res['success'])
-        self.assertEqual(upload_res['filename'], 'test_mock_db.csv')
-        self.assertTrue(len(upload_res['records']) > 0)
-        self.assertEqual(upload_res['records'][0]['rms_po'], '9999')
-        print("  /api/upload-database CSV upload verified.")
-        
-        # Cleanup mock file
-        mock_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'test_mock_db.csv')
-        if os.path.exists(mock_file_path):
-            os.remove(mock_file_path)
+        self.assertEqual(response.status_code, 400)
+        res = json.loads(response.data)
+        self.assertIn('Unsupported file format', res['error'])
+        print("  /api/upload-database CSV rejection verified.")
 
         # Test 3: Upload a sample XLSX database
         import openpyxl
@@ -317,14 +289,8 @@ class TestDocumentGeneratorApp(unittest.TestCase):
 
     def test_save_order_endpoint(self):
         print("Testing /api/save-order endpoint...")
-        # Test 1: Save order to a mock CSV
-        import io
-        import csv
+        # Save order to a mock Excel sheet
         import openpyxl
-        
-        # Prepare mock database
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        mock_csv_path = os.path.join(base_dir, "test_mock_save.csv")
         
         headers = [
             "Date", "RMS P.O", "Part Received", "Vendor", "Promise date", "Notes", "Vendor Contact", 
@@ -334,44 +300,12 @@ class TestDocumentGeneratorApp(unittest.TestCase):
             "Crating/ Handling charges", "Ship out Charges", "Customer contact", "Notes"
         ]
         
-        with open(mock_csv_path, mode='w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow(headers)
-            
         # Set app global active DB
         import app as app_module
         old_db_path = app_module.CURRENT_DB_PATH
         old_db_name = app_module.CURRENT_DB_NAME
-        app_module.CURRENT_DB_PATH = mock_csv_path
-        app_module.CURRENT_DB_NAME = "test_mock_save.csv"
         
-        # Call save-order endpoint
-        test_payload = {
-            'inbound_date': '06/07/2026',
-            'rms_po': '1111',
-            'part_received': 'QTY 2 PN PN-TEST PART',
-            'vendor': 'VEND_TEST',
-            'customer': 'CUST_TEST',
-            'customer_po': 'PO-TEST',
-            'invoice_status': 'Pending'
-        }
-        
-        response = self.app.post(
-            '/api/save-order',
-            data=json.dumps(test_payload),
-            content_type='application/json'
-        )
-        self.assertEqual(response.status_code, 200)
-        res_data = json.loads(response.data)
-        self.assertTrue(res_data['success'])
-        
-        # Verify the CSV row was written
-        records = parse_csv_database(mock_csv_path)
-        self.assertEqual(len(records), 1)
-        self.assertEqual(records[0]['rms_po'], '1111')
-        self.assertEqual(records[0]['customer_po'], 'PO-TEST')
-        
-        # Test 2: Save order to a mock Excel sheet
+        base_dir = os.path.dirname(os.path.abspath(__file__))
         mock_xlsx_path = os.path.join(base_dir, "test_mock_save.xlsx")
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -384,6 +318,17 @@ class TestDocumentGeneratorApp(unittest.TestCase):
         app_module.CURRENT_DB_NAME = "test_mock_save.xlsx"
         app_module.CURRENT_SHEET = "MainSheet"
         app_module.CURRENT_HEADER_ROW = 1
+        
+        # Call save-order endpoint
+        test_payload = {
+            'inbound_date': '06/07/2026',
+            'rms_po': '1111',
+            'part_received': 'QTY 2 PN PN-TEST PART',
+            'vendor': 'VEND_TEST',
+            'customer': 'CUST_TEST',
+            'customer_po': 'PO-TEST',
+            'invoice_status': ''
+        }
         
         response = self.app.post(
             '/api/save-order',
@@ -407,12 +352,10 @@ class TestDocumentGeneratorApp(unittest.TestCase):
         app_module.CURRENT_HEADER_ROW = 1
         
         # Clean up files
-        if os.path.exists(mock_csv_path):
-            os.remove(mock_csv_path)
         if os.path.exists(mock_xlsx_path):
             os.remove(mock_xlsx_path)
             
-        print("  /api/save-order endpoints tests verified successfully for both CSV and XLSX!")
+        print("  /api/save-order endpoints tests verified successfully for XLSX!")
 
 if __name__ == '__main__':
     unittest.main()

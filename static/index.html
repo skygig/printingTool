@@ -72,7 +72,7 @@
                             <button id="btn-pick-file" class="btn btn-secondary btn-sm" type="button">
                                 📁 Pick File
                             </button>
-                            <input type="file" id="db-file-input" accept=".xlsx,.xls,.csv" style="display: none;">
+                            <input type="file" id="db-file-input" accept=".xlsx,.xls" style="display: none;">
                         </div>
                     </div>
                     <!-- Excel-specific controls: Sheet picker and Header row input -->
@@ -100,7 +100,7 @@
                                 <th>Customer P.O.</th>
                                 <th>Part Description</th>
                                 <th>Outbound Date</th>
-                                <th>Status</th>
+                                <th>Invoice status</th>
                             </tr>
                         </thead>
                         <tbody id="table-body">
@@ -259,7 +259,7 @@
                                     <th>Customer P.O.</th>
                                     <th>Part Description</th>
                                     <th>Received Date</th>
-                                    <th>Status</th>
+                                    <th>Invoice status</th>
                                 </tr>
                             </thead>
                             <tbody id="receiving-table-body">
@@ -508,7 +508,7 @@
                         <div class="form-group">
                             <label for="oe-invoice-status">Invoice Status</label>
                             <select id="oe-invoice-status">
-                                <option value="Pending" selected>Pending</option>
+                                <option value="" selected>Not Invoiced</option>
                                 <option value="Invoiced">Invoiced</option>
                                 <option value="Delivered">Delivered</option>
                                 <option value="Cancelled">Cancelled</option>
