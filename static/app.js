@@ -58,6 +58,7 @@ const poTitle = document.getElementById('po-title');
 const generatorForm = document.getElementById('generator-form');
 
 const btnGenerate = document.getElementById('btn-generate');
+const btnSaveShippingChanges = document.getElementById('btn-save-shipping-changes');
 const btnShowInFolder = document.getElementById('btn-show-in-folder');
 const docsList = document.getElementById('docs-list');
 
@@ -90,6 +91,7 @@ window.addEventListener('DOMContentLoaded', () => {
     prevPageBtn.addEventListener('click', () => changePage(-1));
     nextPageBtn.addEventListener('click', () => changePage(1));
     generatorForm.addEventListener('submit', handleFormSubmit);
+    if (btnSaveShippingChanges) btnSaveShippingChanges.addEventListener('click', handleSaveShippingChanges);
     btnShowInFolder.addEventListener('click', openOutputsFolder);
     
     btnPickFile.addEventListener('click', () => dbFileInput.click());
@@ -748,6 +750,103 @@ function handleFormSubmit(e) {
         btnGenerate.innerHTML = `<span class="btn-icon">⚡</span> Generate All 3 Documents`;
         showToast("Server Error", "An error occurred on the server.", null, true);
         console.error("Submit Error:", err);
+    });
+}
+
+function handleSaveShippingChanges(e) {
+    if (!selectedRecord) return;
+
+    const saveBtn = document.getElementById('btn-save-shipping-changes');
+    const originalText = saveBtn.innerHTML;
+
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = `<span class="btn-icon">⏳</span> Saving...`;
+
+    const po = (selectedRecord.customer_po || '').trim();
+    let groupRecords = [selectedRecord];
+    if (po) {
+        groupRecords = records.filter(r => (r.customer_po || '').trim() === po);
+    }
+
+    const cards = document.querySelectorAll('.item-edit-card');
+    if (cards.length === 0) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+        return;
+    }
+
+    const updates = [];
+
+    // Read metadata inputs
+    const customerPoVal = inputCustomerPo.value.trim();
+    const orderDateVal = inputOrderDate.value.trim();
+    const weightVal = inputWeight.value.trim();
+    const sizeVal = inputSize.value.trim();
+    const shipToVal = txtShipTo.value.trim();
+
+    // Parse size dimensions
+    let outL = "", outW = "", outH = "";
+    if (sizeVal) {
+        const parts = sizeVal.split(/[xX]/);
+        if (parts.length > 0) outL = parts[0].trim();
+        if (parts.length > 1) outW = parts[1].trim();
+        if (parts.length > 2) outH = parts[2].trim();
+    }
+
+    cards.forEach((card, index) => {
+        const rec = groupRecords[index];
+        if (!rec) return;
+
+        const lineNumVal = card.querySelector('.item-line-num').value.trim();
+        const partNumVal = card.querySelector('.item-part-num').value.trim();
+        const descVal = card.querySelector('.item-part-desc').value.trim();
+        const qtyVal = card.querySelector('.item-qty').value.trim();
+        const hsCodeVal = card.querySelector('.item-hs-code').value.trim();
+
+        // Reconstruct part_received
+        const partReceivedVal = `QTY ${qtyVal} PN ${partNumVal} ${descVal}`;
+
+        updates.push({
+            row_id: rec.row_id,
+            customer_po: customerPoVal,
+            outbound_date: orderDateVal,
+            outbound_weight: weightVal,
+            outbound_l: outL,
+            outbound_w: outW,
+            outbound_h: outH,
+            ship_to: shipToVal,
+            line_num: lineNumVal,
+            hs_code: hsCodeVal,
+            part_received: partReceivedVal
+        });
+    });
+
+    fetch('/api/update-records', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ updates })
+    })
+    .then(res => res.json())
+    .then(data => {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+
+        if (data.success) {
+            showToast("Changes Saved", `Successfully updated ${updates.length} records in the Excel sheet.`, null, false);
+            
+            // Reload database to refresh table data
+            loadDatabase();
+        } else {
+            showToast("Save Error", data.error || "Failed to save changes", null, true);
+        }
+    })
+    .catch(err => {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+        showToast("Server Error", "An error occurred while saving changes.", null, true);
+        console.error("Save Changes Error:", err);
     });
 }
 

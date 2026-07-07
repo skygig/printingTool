@@ -124,10 +124,17 @@ def parse_excel_database(file_path, sheet_name=None, header_row=1):
                     row.append(str(int(val)))
                 else:
                     # Convert cell value to clean string
-                    row.append(str(val))
+                    val_str = str(val)
+                    if val_str.endswith(" 00:00:00"):
+                        val_str = val_str[:-9]
+                    row.append(val_str)
                     
             if not row or all(cell.strip() == "" for cell in row):
                 continue # Skip empty rows
+                
+            # Skip rows containing "cancelled" (case-insensitive)
+            if any("cancelled" in cell.lower() for cell in row):
+                continue
                 
             max_len = max(34, boxes_idx + 1, photo_idx + 1, report_idx + 1)
             if len(row) < max_len:
@@ -570,6 +577,28 @@ def update_excel_records(file_path, sheet_name, header_row_idx, updates):
             sheet.cell(row=row_id, column=photo_idx, value=cast_val(update['photo']))
         if report_idx != -1 and 'report' in update:
             sheet.cell(row=row_id, column=report_idx, value=cast_val(update['report']))
+            
+        # Outbound / shipping / order entry fields
+        if 'part_received' in update:
+            sheet.cell(row=row_id, column=3, value=cast_val(update['part_received']))
+        if 'outbound_date' in update:
+            sheet.cell(row=row_id, column=16, value=cast_val(update['outbound_date']))
+        if 'customer_po' in update:
+            sheet.cell(row=row_id, column=18, value=cast_val(update['customer_po']))
+        if 'ship_to' in update:
+            sheet.cell(row=row_id, column=20, value=cast_val(update['ship_to']))
+        if 'line_num' in update:
+            sheet.cell(row=row_id, column=21, value=cast_val(update['line_num']))
+        if 'hs_code' in update:
+            sheet.cell(row=row_id, column=22, value=cast_val(update['hs_code']))
+        if 'outbound_l' in update:
+            sheet.cell(row=row_id, column=25, value=cast_val(update['outbound_l']))
+        if 'outbound_w' in update:
+            sheet.cell(row=row_id, column=26, value=cast_val(update['outbound_w']))
+        if 'outbound_h' in update:
+            sheet.cell(row=row_id, column=27, value=cast_val(update['outbound_h']))
+        if 'outbound_weight' in update:
+            sheet.cell(row=row_id, column=28, value=cast_val(update['outbound_weight']))
             
     wb.save(file_path)
     wb.close()
