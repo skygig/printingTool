@@ -808,6 +808,7 @@ function handleSaveShippingChanges(e) {
 
         updates.push({
             row_id: rec.row_id,
+            row_hash: rec.row_hash,
             customer_po: customerPoVal,
             outbound_date: orderDateVal,
             outbound_weight: weightVal,
@@ -1739,6 +1740,7 @@ function handleReceivingSave(e) {
     const updates = activeReceivingRecords.map(rec => {
         return {
             row_id: rec.row_id,
+            row_hash: rec.row_hash,
             received_date: dateVal,
             inbound_carrier: courierVal,
             inbound_tracking: trackingVal,

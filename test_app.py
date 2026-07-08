@@ -357,6 +357,89 @@ class TestDocumentGeneratorApp(unittest.TestCase):
             
         print("  /api/save-order endpoints tests verified successfully for XLSX!")
 
+    def test_optimistic_locking(self):
+        print("Testing Optimistic Concurrency Control...")
+        import openpyxl
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        mock_xlsx_path = os.path.join(base_dir, "test_mock_lock.xlsx")
+        
+        headers = [
+            "Date", "RMS P.O", "Part Received", "Vendor", "Promise date", "Notes", "Vendor Contact", 
+            "Recieved Date", "Carrier", "Trackin/Pro#", "L", "W", "H", "Weight", "Inbound Shipping Charges", 
+            "Date", "Customer", "Customer P.O", "RMS Invoice #", "Ship To", "Line #", "HS code", 
+            "Shipped", "Invoice Status", "L", "W", "H", "Weight", "Carrier", "Tracking/ Pro#", 
+            "Crating/ Handling charges", "Ship out Charges", "Customer contact", "Notes"
+        ]
+        
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "MainSheet"
+        ws.append(headers)
+        row_data = [""] * 34
+        row_data[1] = "5555"
+        row_data[2] = "PN-TEST"
+        ws.append(row_data)
+        wb.save(mock_xlsx_path)
+        wb.close()
+        
+        import app as app_module
+        old_db_path = app_module.CURRENT_DB_PATH
+        old_db_name = app_module.CURRENT_DB_NAME
+        app_module.CURRENT_DB_PATH = mock_xlsx_path
+        app_module.CURRENT_DB_NAME = "test_mock_lock.xlsx"
+        app_module.CURRENT_SHEET = "MainSheet"
+        app_module.CURRENT_HEADER_ROW = 1
+        
+        # Parse it to get current records and their row hash
+        records = app_module.parse_excel_database(mock_xlsx_path, "MainSheet", 1)
+        self.assertEqual(len(records), 1)
+        rec = records[0]
+        correct_hash = rec['row_hash']
+        
+        # Try updating with wrong hash
+        payload_wrong = {
+            'updates': [{
+                'row_id': rec['row_id'],
+                'row_hash': 'wrong_hash_value',
+                'customer_po': 'NEW-PO'
+            }]
+        }
+        response = self.app.post(
+            '/api/update-records',
+            data=json.dumps(payload_wrong),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 500)
+        res_data = json.loads(response.data)
+        self.assertIn('modified by another user', res_data['error'])
+        print("  Blocked update with mismatching row hash verified.")
+        
+        # Try updating with correct hash
+        payload_correct = {
+            'updates': [{
+                'row_id': rec['row_id'],
+                'row_hash': correct_hash,
+                'customer_po': 'NEW-PO'
+            }]
+        }
+        response = self.app.post(
+            '/api/update-records',
+            data=json.dumps(payload_correct),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        res_data = json.loads(response.data)
+        self.assertTrue(res_data['success'])
+        print("  Allowed update with matching row hash verified.")
+        
+        # Restore old globals and cleanup
+        app_module.CURRENT_DB_PATH = old_db_path
+        app_module.CURRENT_DB_NAME = old_db_name
+        app_module.CURRENT_SHEET = None
+        app_module.CURRENT_HEADER_ROW = 1
+        if os.path.exists(mock_xlsx_path):
+            os.remove(mock_xlsx_path)
+
 if __name__ == '__main__':
     unittest.main()
 

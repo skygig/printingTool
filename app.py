@@ -76,6 +76,96 @@ OUTPUTS_DIR = os.path.join(BASE_DIR, "Outputs")
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
 
 
+def calculate_record_hash(rec):
+    keys = [
+        'inbound_date', 'rms_po', 'part_received', 'vendor', 'promise_date',
+        'inbound_notes', 'vendor_contact', 'received_date', 'inbound_carrier', 'inbound_tracking',
+        'inbound_l', 'inbound_w', 'inbound_h', 'inbound_weight', 'inbound_charges',
+        'outbound_date', 'customer', 'customer_po', 'rms_invoice', 'ship_to',
+        'line_num', 'hs_code', 'shipped_date', 'invoice_status', 'outbound_l',
+        'outbound_w', 'outbound_h', 'outbound_weight', 'outbound_carrier', 'outbound_tracking',
+        'crating_charges', 'shipping_charges', 'customer_contact', 'outbound_notes',
+        'no_of_boxes', 'photo', 'report'
+    ]
+    content = "|".join(str(rec.get(k, "")).strip() for k in keys)
+    import hashlib
+    return hashlib.md5(content.encode('utf-8')).hexdigest()
+
+
+def get_excel_row_record(sheet, row_idx, boxes_col_idx, photo_col_idx, report_col_idx):
+    row = []
+    for c in range(1, 35):
+        val = sheet.cell(row=row_idx, column=c).value
+        if val is None:
+            row.append("")
+        elif isinstance(val, float) and val.is_integer():
+            row.append(str(int(val)))
+        else:
+            val_str = str(val)
+            if val_str.endswith(" 00:00:00"):
+                val_str = val_str[:-9]
+            row.append(val_str)
+            
+    if len(row) < 34:
+        row = row + [""] * (34 - len(row))
+        
+    no_of_boxes = ""
+    if boxes_col_idx != -1 and boxes_col_idx <= sheet.max_column:
+        val = sheet.cell(row=row_idx, column=boxes_col_idx).value
+        no_of_boxes = str(val).strip() if val is not None else ""
+        
+    photo = ""
+    if photo_col_idx != -1 and photo_col_idx <= sheet.max_column:
+        val = sheet.cell(row=row_idx, column=photo_col_idx).value
+        photo = str(val).strip() if val is not None else ""
+        
+    report = ""
+    if report_col_idx != -1 and report_col_idx <= sheet.max_column:
+        val = sheet.cell(row=row_idx, column=report_col_idx).value
+        report = str(val).strip() if val is not None else ""
+        
+    rec = {
+        'inbound_date': row[0].strip(),
+        'rms_po': row[1].strip(),
+        'part_received': row[2].strip(),
+        'vendor': row[3].strip(),
+        'promise_date': row[4].strip(),
+        'inbound_notes': row[5].strip(),
+        'vendor_contact': row[6].strip(),
+        'received_date': row[7].strip(),
+        'inbound_carrier': row[8].strip(),
+        'inbound_tracking': row[9].strip(),
+        'inbound_l': row[10].strip(),
+        'inbound_w': row[11].strip(),
+        'inbound_h': row[12].strip(),
+        'inbound_weight': row[13].strip(),
+        'inbound_charges': row[14].strip(),
+        'outbound_date': row[15].strip().replace(" 00:00:00", ""),
+        'customer': row[16].strip(),
+        'customer_po': row[17].strip(),
+        'rms_invoice': row[18].strip(),
+        'ship_to': row[19].strip(),
+        'line_num': row[20].strip(),
+        'hs_code': row[21].strip(),
+        'shipped_date': row[22].strip(),
+        'invoice_status': row[23].strip(),
+        'outbound_l': row[24].strip(),
+        'outbound_w': row[25].strip(),
+        'outbound_h': row[26].strip(),
+        'outbound_weight': row[27].strip(),
+        'outbound_carrier': row[28].strip(),
+        'outbound_tracking': row[29].strip(),
+        'crating_charges': row[30].strip(),
+        'shipping_charges': row[31].strip(),
+        'customer_contact': row[32].strip(),
+        'outbound_notes': row[33].strip(),
+        'no_of_boxes': no_of_boxes,
+        'photo': photo,
+        'report': report,
+    }
+    return rec
+
+
 def parse_excel_database(file_path, sheet_name=None, header_row=1):
     """
     Parses the warehouse tracking Excel sheet.
@@ -180,6 +270,7 @@ def parse_excel_database(file_path, sheet_name=None, header_row=1):
                 'photo': row[photo_idx].strip() if photo_idx != -1 else "",
                 'report': row[report_idx].strip() if report_idx != -1 else "",
             }
+            record['row_hash'] = calculate_record_hash(record)
             
             if record['rms_po'] or record['customer_po'] or record['part_received']:
                 records.append(record)
@@ -553,6 +644,14 @@ def update_excel_records(file_path, sheet_name, header_row_idx, updates):
             
     for update in updates:
         row_id = int(update['row_id'])
+        
+        # Verify row_hash if provided
+        row_hash = update.get('row_hash')
+        if row_hash:
+            current_rec = get_excel_row_record(sheet, row_id, boxes_idx, photo_idx, report_idx)
+            current_hash = calculate_record_hash(current_rec)
+            if current_hash != row_hash:
+                raise Exception(f"Row {row_id} has been modified by another user. Please refresh page and re-apply changes.")
         
         if 'received_date' in update:
             sheet.cell(row=row_id, column=8, value=cast_val(update['received_date']))
