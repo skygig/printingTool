@@ -94,7 +94,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (btnSaveShippingChanges) btnSaveShippingChanges.addEventListener('click', handleSaveShippingChanges);
     btnShowInFolder.addEventListener('click', openOutputsFolder);
     
-    btnPickFile.addEventListener('click', () => dbFileInput.click());
+    btnPickFile.addEventListener('click', triggerFilePicker);
     dbFileInput.addEventListener('change', handleFileUpload);
     sheetSelect.addEventListener('change', handleSheetChange);
     headerRowInput.addEventListener('change', handleHeaderRowChange);
@@ -104,7 +104,7 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    if (receivingBtnPickFile) receivingBtnPickFile.addEventListener('click', () => receivingDbFileInput.click());
+    if (receivingBtnPickFile) receivingBtnPickFile.addEventListener('click', triggerFilePicker);
     if (receivingDbFileInput) receivingDbFileInput.addEventListener('change', handleFileUpload);
     if (receivingSheetSelect) receivingSheetSelect.addEventListener('change', handleSheetChange);
     if (receivingHeaderRowInput) {
@@ -990,6 +990,36 @@ function openOutputsFolder() {
 
 function closeToast() {
     toast.classList.add('hidden');
+}
+
+function triggerFilePicker() {
+    const originalFilenameText = dbFilename.textContent;
+    dbFilename.textContent = "Selecting file...";
+    const recDbFilename = document.getElementById('receiving-db-filename');
+    if (recDbFilename) recDbFilename.textContent = "Selecting file...";
+
+    fetch('/api/pick-file', { method: 'POST' })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            showToast("Database Selected", `Loaded: ${data.filename}`, null, false);
+            loadDatabase();
+        } else {
+            // Restore text if cancelled or errored
+            dbFilename.textContent = originalFilenameText;
+            if (recDbFilename) recDbFilename.textContent = originalFilenameText;
+            
+            if (data.error) {
+                showToast("Error", data.error, null, true);
+            }
+        }
+    })
+    .catch(err => {
+        dbFilename.textContent = originalFilenameText;
+        if (recDbFilename) recDbFilename.textContent = originalFilenameText;
+        console.error("File pick error:", err);
+        showToast("Error", "Could not trigger file picker.", null, true);
+    });
 }
 
 // File Upload Handler

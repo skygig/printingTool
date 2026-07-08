@@ -324,6 +324,87 @@ def get_db_status():
     })
 
 
+@app.route('/api/pick-file', methods=['POST', 'GET'])
+def pick_file():
+    global CURRENT_DB_PATH, CURRENT_DB_NAME, CURRENT_SHEET, EXCEL_SHEETS, CURRENT_HEADER_ROW
+    import platform
+    import subprocess
+    
+    file_path = None
+    system_os = platform.system()
+    
+    if system_os == 'Darwin':
+        # macOS: Run AppleScript to open a native file dialog
+        script = 'POSIX path of (choose file of type {"xlsx", "xls", "org.openxmlformats.spreadsheetml.sheet", "com.microsoft.excel.xls"} with prompt "Select Excel Database File")'
+        try:
+            proc = subprocess.run(['osascript', '-e', script], capture_output=True, text=True)
+            if proc.returncode == 0:
+                file_path = proc.stdout.strip()
+        except Exception as e:
+            print(f"Error opening macOS dialog: {e}")
+            
+    elif system_os == 'Windows':
+        # Windows: Run PowerShell System.Windows.Forms dialog
+        ps_script = (
+            "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null;"
+            "$dialog = New-Object System.Windows.Forms.OpenFileDialog;"
+            "$dialog.Filter = 'Excel Files (*.xlsx; *.xls)|*.xlsx;*.xls';"
+            "$dialog.Title = 'Select Excel Database File';"
+            "$res = $dialog.ShowDialog();"
+            "if ($res -eq 'OK') { Write-Output $dialog.FileName }"
+        )
+        try:
+            proc = subprocess.run(
+                ['powershell', '-NoProfile', '-Command', ps_script],
+                capture_output=True,
+                text=True,
+                creationflags=0x08000000 # CREATE_NO_WINDOW
+            )
+            if proc.returncode == 0:
+                file_path = proc.stdout.strip()
+        except Exception as e:
+            print(f"Error opening Windows dialog: {e}")
+            
+    if not file_path:
+        return jsonify({'cancelled': True})
+        
+    if not os.path.exists(file_path):
+        return jsonify({'error': 'Selected file does not exist.'}), 400
+        
+    filename = os.path.basename(file_path)
+    ext = os.path.splitext(filename)[1].lower()
+    
+    if ext not in ['.xlsx', '.xls']:
+        return jsonify({'error': 'Only Excel files (.xlsx, .xls) are supported.'}), 400
+        
+    CURRENT_DB_NAME = filename
+    CURRENT_DB_PATH = file_path
+    CURRENT_SHEET = None
+    EXCEL_SHEETS = []
+    CURRENT_HEADER_ROW = 1
+    
+    try:
+        wb = openpyxl.load_workbook(file_path, read_only=True)
+        sheets = wb.sheetnames
+        wb.close()
+        
+        EXCEL_SHEETS = sheets
+        if len(sheets) > 0:
+            CURRENT_SHEET = sheets[0]
+            
+        save_db_config()
+        return jsonify({
+            'success': True,
+            'file_path': file_path,
+            'filename': filename,
+            'sheets': sheets,
+            'selected_sheet': CURRENT_SHEET,
+            'header_row': CURRENT_HEADER_ROW
+        })
+    except Exception as e:
+        return jsonify({'error': f"Failed to read Excel file: {str(e)}"}), 500
+
+
 @app.route('/api/upload-database', methods=['POST'])
 def upload_database():
     global CURRENT_DB_PATH, CURRENT_DB_NAME, CURRENT_SHEET, EXCEL_SHEETS, CURRENT_HEADER_ROW
