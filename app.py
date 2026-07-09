@@ -4,13 +4,22 @@ import json
 import openpyxl
 import webbrowser
 from threading import Timer
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, session
 from werkzeug.utils import secure_filename
 
 from docx_generator import generate_docx_labels
 from pdf_generator import generate_printing_slip, generate_commercial_invoice
 
 app = Flask(__name__, static_folder='static', static_url_path='')
+app.secret_key = os.environ.get('SECRET_KEY', 'rms-warehouse-secret-key-123')
+
+# User database configuration
+USERS = {
+    'raj': {'password': 'Plainfield1$', 'role': 'admin'},
+    'sales': {'password': 'Rms12361$', 'role': 'admin'},
+    'accounting': {'password': 'Acc12361$', 'role': 'employee'},
+    'warehouse': {'password': 'Rhea12361$', 'role': 'employee'}
+}
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -292,6 +301,65 @@ def load_current_database():
     if ext in ['.xlsx', '.xls']:
         return parse_excel_database(CURRENT_DB_PATH, CURRENT_SHEET, CURRENT_HEADER_ROW)
     return []
+
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.json or {}
+    username = data.get('username')
+    password = data.get('password')
+    
+    if not username or not password:
+        return jsonify({'error': 'Username and password are required.'}), 400
+        
+    user = USERS.get(username)
+    if user and user['password'] == password:
+        session['username'] = username
+        session['role'] = user['role']
+        return jsonify({
+            'success': True,
+            'username': username,
+            'role': user['role']
+        })
+        
+    return jsonify({'error': 'Invalid username or password.'}), 401
+
+
+@app.route('/api/logout', methods=['POST', 'GET'])
+def logout():
+    session.clear()
+    return jsonify({'success': True})
+
+
+@app.route('/api/auth-status', methods=['GET'])
+def auth_status():
+    if 'username' in session:
+        return jsonify({
+            'authenticated': True,
+            'username': session['username'],
+            'role': session.get('role', 'employee')
+        })
+    return jsonify({'authenticated': False})
+
+
+@app.before_request
+def check_auth():
+    if app.testing:
+        return
+        
+    # Exclude auth APIs
+    if request.path.startswith('/api/') and request.path not in ['/api/login', '/api/logout', '/api/auth-status']:
+        username = session.get('username')
+        if not username:
+            return jsonify({'error': 'Unauthorized. Please log in.'}), 401
+            
+        # Role-based restriction:
+        # "admin: raj and sales, can access everything or all three section i.e. Shipping, Receiving and Order Entry"
+        # "employee: accounting and warehousing, can only access Shipping and Receiving section"
+        if request.path == '/api/save-order':
+            role = session.get('role')
+            if role != 'admin':
+                return jsonify({'error': 'Forbidden. Only administrators can access this section.'}), 403
 
 
 @app.route('/')

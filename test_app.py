@@ -5,8 +5,8 @@ from app import app
 
 class TestDocumentGeneratorApp(unittest.TestCase):
     def setUp(self):
+        app.config['TESTING'] = True
         self.app = app.test_client()
-        self.app.testing = True
 
 
 
@@ -439,6 +439,78 @@ class TestDocumentGeneratorApp(unittest.TestCase):
         app_module.CURRENT_HEADER_ROW = 1
         if os.path.exists(mock_xlsx_path):
             os.remove(mock_xlsx_path)
+
+    def test_authentication_flow(self):
+        print("Testing Authentication and Authorization Flow...")
+        
+        # Turn off testing mode configuration so the middleware runs
+        app.config['TESTING'] = False
+        
+        # 1. Access protected route without logging in -> 401
+        response = self.app.get('/api/records')
+        self.assertEqual(response.status_code, 401)
+        
+        # 2. Login with invalid credentials -> 401
+        response = self.app.post(
+            '/api/login',
+            data=json.dumps({'username': 'raj', 'password': 'wrongpassword'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 401)
+        
+        # 3. Login as employee (accounting) -> 200
+        response = self.app.post(
+            '/api/login',
+            data=json.dumps({'username': 'accounting', 'password': 'Acc12361$'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data['success'])
+        self.assertEqual(data['role'], 'employee')
+        
+        # 4. Access shipping records as employee -> 200
+        response = self.app.get('/api/records')
+        self.assertEqual(response.status_code, 200)
+        
+        # 5. Access save-order (restricted to admin) as employee -> 403 Forbidden
+        response = self.app.post(
+            '/api/save-order',
+            data=json.dumps({}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 403)
+        
+        # 6. Logout -> 200
+        response = self.app.post('/api/logout')
+        self.assertEqual(response.status_code, 200)
+        
+        # 7. Check auth-status -> False
+        response = self.app.get('/api/auth-status')
+        self.assertEqual(response.status_code, 200)
+        status = json.loads(response.data)
+        self.assertFalse(status['authenticated'])
+        
+        # 8. Login as admin (raj) -> 200
+        response = self.app.post(
+            '/api/login',
+            data=json.dumps({'username': 'raj', 'password': 'Plainfield1$'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        
+        # 9. Access save-order as admin. Bypasses 403 Forbidden and hits route logic
+        # (which returns 400 since there is no active DB path loaded in app context for this test)
+        response = self.app.post(
+            '/api/save-order',
+            data=json.dumps({}),
+            content_type='application/json'
+        )
+        self.assertNotEqual(response.status_code, 403)
+        
+        # Restore testing configuration
+        app.config['TESTING'] = True
+        print("  Authentication and role-based authorization tests passed successfully!")
 
 if __name__ == '__main__':
     unittest.main()

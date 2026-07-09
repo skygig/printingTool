@@ -1,3 +1,23 @@
+// Intercept all fetch requests to handle 401 Unauthorized
+const originalFetch = window.fetch;
+window.fetch = function(...args) {
+    return originalFetch.apply(this, args).then(response => {
+        if (response.status === 401 && 
+            typeof args[0] === 'string' &&
+            !args[0].includes('/api/auth-status') && 
+            !args[0].includes('/api/login')) {
+            // Show login screen
+            const loginOverlay = document.getElementById('login-overlay');
+            const profileBadge = document.getElementById('user-profile-badge');
+            const btnLogout = document.getElementById('btn-logout');
+            if (loginOverlay) loginOverlay.classList.remove('hidden');
+            if (profileBadge) profileBadge.classList.add('hidden');
+            if (btnLogout) btnLogout.classList.add('hidden');
+        }
+        return response;
+    });
+};
+
 // State Variables
 let records = [];
 let filteredRecords = [];
@@ -83,8 +103,7 @@ const txtNotesList = document.getElementById('notes_list');
 
 // Initialize App
 window.addEventListener('DOMContentLoaded', () => {
-    loadDatabase();
-    loadGeneratedFiles();
+    checkAuthStatus();
     
     // Bind Event Listeners
     searchInput.addEventListener('input', handleSearch);
@@ -238,7 +257,126 @@ window.addEventListener('DOMContentLoaded', () => {
     if (recRecordSelect) recRecordSelect.addEventListener('change', handleReportRecordSelectChange);
     if (btnOpenReport) btnOpenReport.addEventListener('click', handleOpenReportClick);
     if (recReportTextarea) recReportTextarea.addEventListener('input', handleReportTextareaInput);
+
+    // Login form submit handler
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const usernameInput = document.getElementById('login-username');
+            const passwordInput = document.getElementById('login-password');
+            const loginError = document.getElementById('login-error');
+            const btnSubmit = document.getElementById('btn-login-submit');
+
+            if (!usernameInput || !passwordInput) return;
+
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value;
+
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = 'Signing in...';
+            if (loginError) loginError.classList.add('hidden');
+
+            fetch('/api/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ username, password })
+            })
+            .then(res => {
+                if (!res.ok) {
+                    return res.json().then(data => { throw new Error(data.error || 'Login failed'); });
+                }
+                return res.json();
+            })
+            .then(data => {
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = 'Sign In';
+                usernameInput.value = '';
+                passwordInput.value = '';
+                checkAuthStatus();
+            })
+            .catch(err => {
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = 'Sign In';
+                if (loginError) {
+                    loginError.textContent = err.message || 'Invalid username or password.';
+                    loginError.classList.remove('hidden');
+                }
+            });
+        });
+    }
+
+    // Logout button handler
+    const btnLogout = document.getElementById('btn-logout');
+    if (btnLogout) {
+        btnLogout.addEventListener('click', () => {
+            fetch('/api/logout', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const tabDashboard = document.getElementById('tab-dashboard');
+                    if (tabDashboard) tabDashboard.click();
+                    checkAuthStatus();
+                }
+            })
+            .catch(err => {
+                console.error("Logout failed:", err);
+            });
+        });
+    }
 });
+
+function checkAuthStatus() {
+    fetch('/api/auth-status')
+        .then(res => res.json())
+        .then(data => {
+            if (data.authenticated) {
+                const loginOverlay = document.getElementById('login-overlay');
+                if (loginOverlay) loginOverlay.classList.add('hidden');
+                
+                const displayName = document.getElementById('user-display-name');
+                if (displayName) {
+                    displayName.textContent = `${data.username} (${data.role})`;
+                }
+                
+                const profileBadge = document.getElementById('user-profile-badge');
+                if (profileBadge) profileBadge.classList.remove('hidden');
+                
+                const btnLogout = document.getElementById('btn-logout');
+                if (btnLogout) btnLogout.classList.remove('hidden');
+                
+                // Show/hide Order Entry tab based on role
+                const tabOrderEntry = document.getElementById('tab-order-entry');
+                if (tabOrderEntry) {
+                    if (data.role === 'admin') {
+                        tabOrderEntry.classList.remove('hidden');
+                    } else {
+                        tabOrderEntry.classList.add('hidden');
+                    }
+                }
+                
+                // Initialize database and files load
+                loadDatabase();
+                loadGeneratedFiles();
+            } else {
+                const loginOverlay = document.getElementById('login-overlay');
+                if (loginOverlay) loginOverlay.classList.remove('hidden');
+                
+                const profileBadge = document.getElementById('user-profile-badge');
+                if (profileBadge) profileBadge.classList.add('hidden');
+                
+                const btnLogout = document.getElementById('btn-logout');
+                if (btnLogout) btnLogout.classList.add('hidden');
+            }
+        })
+        .catch(err => {
+            console.error("Auth check failed:", err);
+            const loginOverlay = document.getElementById('login-overlay');
+            if (loginOverlay) loginOverlay.classList.remove('hidden');
+        });
+}
 
 // Fetch CSV/Excel Data from API
 function loadDatabase() {
