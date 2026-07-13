@@ -174,8 +174,8 @@
                             </div>
 
                             <div class="form-group">
-                                <label for="date">Printing Date</label>
-                                <input type="text" id="date" placeholder="e.g. 05/19/2026">
+                                <label for="shipped_date">Shipping Date</label>
+                                <input type="text" id="shipped_date" placeholder="e.g. 05/20/2026">
                             </div>
 
                             <div class="form-group">
@@ -189,8 +189,17 @@
                             </div>
 
                             <div class="form-group">
-                                <label for="size">Size (Inches)</label>
-                                <input type="text" id="size" placeholder="e.g. 13x11x5">
+                                <label>LxWxH (Inches)</label>
+                                <div style="display: flex; gap: 8px;">
+                                    <input type="text" id="outbound_l" placeholder="L" style="text-align: center;">
+                                    <input type="text" id="outbound_w" placeholder="W" style="text-align: center;">
+                                    <input type="text" id="outbound_h" placeholder="H" style="text-align: center;">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="outbound_carrier">Carrier</label>
+                                <input type="text" id="outbound_carrier" placeholder="e.g. FedEx / UPS">
                             </div>
                         </div>
 

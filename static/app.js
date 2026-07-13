@@ -92,10 +92,13 @@ const toastIcon = document.getElementById('toast-icon');
 // Form Input Elements
 const inputCustomerPo = document.getElementById('customer_po');
 const inputLineNum = document.getElementById('line_num');
-const inputDate = document.getElementById('date');
+const inputShippedDate = document.getElementById('shipped_date');
 const inputOrderDate = document.getElementById('order_date');
 const inputWeight = document.getElementById('weight');
-const inputSize = document.getElementById('size');
+const inputOutboundL = document.getElementById('outbound_l');
+const inputOutboundW = document.getElementById('outbound_w');
+const inputOutboundH = document.getElementById('outbound_h');
+const inputCarrier = document.getElementById('outbound_carrier');
 const txtSoldTo = document.getElementById('sold_to_address');
 const txtShipTo = document.getElementById('ship_to_address');
 const inputFreeReplacement = document.getElementById('free_replacement_note');
@@ -750,18 +753,30 @@ function selectRow(record, trElement) {
     if (inputLineNum) {
         inputLineNum.value = '1';
     }
-    inputDate.value = getFormattedToday();
+    inputShippedDate.value = record.shipped_date || getFormattedToday();
     
     // Pre-fill Order Date (outbound_date if exists, else inbound_date)
     inputOrderDate.value = record.outbound_date || record.inbound_date || getFormattedToday();
     
-    // Pre-fill Weight & Size
+    // Pre-fill Weight & Dimensions
     inputWeight.value = record.outbound_weight || record.inbound_weight || '2 LBS';
     
-    const sizeStr = record.outbound_l ? 
-        `${record.outbound_l}x${record.outbound_w}x${record.outbound_h}` : 
-        (record.inbound_l ? `${record.inbound_l}x${record.inbound_w}x${record.inbound_h}` : '13x11x5');
-    inputSize.value = sizeStr;
+    if (record.outbound_l) {
+        inputOutboundL.value = record.outbound_l;
+        inputOutboundW.value = record.outbound_w;
+        inputOutboundH.value = record.outbound_h;
+    } else if (record.inbound_l) {
+        inputOutboundL.value = record.inbound_l;
+        inputOutboundW.value = record.inbound_w;
+        inputOutboundH.value = record.inbound_h;
+    } else {
+        inputOutboundL.value = '13';
+        inputOutboundW.value = '11';
+        inputOutboundH.value = '5';
+    }
+    
+    // Pre-fill Carrier
+    inputCarrier.value = record.outbound_carrier || '';
     
     // Set Addresses
     txtSoldTo.value = ADDRESSES[customerType].sold_to;
@@ -851,10 +866,10 @@ function handleFormSubmit(e) {
         hs_code: firstItem.hs_code || '',
         amount: firstItem.amount || '0.00',
         line_num: (inputLineNum ? inputLineNum.value : '') || firstItem.line_num || '1',
-        date: inputDate.value,
+        date: inputShippedDate.value,
         order_date: inputOrderDate.value,
         weight: inputWeight.value,
-        size: inputSize.value,
+        size: `${inputOutboundL.value.trim()}x${inputOutboundW.value.trim()}x${inputOutboundH.value.trim()}`,
         sold_to_address: txtSoldTo.value,
         ship_to_address: txtShipTo.value,
         free_replacement_note: inputFreeReplacement.value,
@@ -919,17 +934,14 @@ function handleSaveShippingChanges(e) {
     const customerPoVal = inputCustomerPo.value.trim();
     const orderDateVal = inputOrderDate.value.trim();
     const weightVal = inputWeight.value.trim();
-    const sizeVal = inputSize.value.trim();
     const shipToVal = txtShipTo.value.trim();
+    const shippedDateVal = inputShippedDate.value.trim();
+    const carrierVal = inputCarrier.value.trim();
 
-    // Parse size dimensions
-    let outL = "", outW = "", outH = "";
-    if (sizeVal) {
-        const parts = sizeVal.split(/[xX]/);
-        if (parts.length > 0) outL = parts[0].trim();
-        if (parts.length > 1) outW = parts[1].trim();
-        if (parts.length > 2) outH = parts[2].trim();
-    }
+    // Outbound dimensions
+    const outL = inputOutboundL.value.trim();
+    const outW = inputOutboundW.value.trim();
+    const outH = inputOutboundH.value.trim();
 
     cards.forEach((card, index) => {
         const rec = groupRecords[index];
@@ -953,6 +965,8 @@ function handleSaveShippingChanges(e) {
             outbound_l: outL,
             outbound_w: outW,
             outbound_h: outH,
+            shipped_date: shippedDateVal,
+            outbound_carrier: carrierVal,
             ship_to: shipToVal,
             line_num: lineNumVal,
             hs_code: hsCodeVal,

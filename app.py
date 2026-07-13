@@ -847,6 +847,10 @@ def update_excel_records(file_path, sheet_name, header_row_idx, updates):
             sheet.cell(row=row_id, column=27, value=cast_val(update['outbound_h']))
         if 'outbound_weight' in update:
             sheet.cell(row=row_id, column=28, value=cast_val(update['outbound_weight']))
+        if 'shipped_date' in update:
+            sheet.cell(row=row_id, column=23, value=cast_val(update['shipped_date']))
+        if 'outbound_carrier' in update:
+            sheet.cell(row=row_id, column=29, value=cast_val(update['outbound_carrier']))
             
     wb.save(file_path)
     wb.close()
