@@ -419,7 +419,8 @@ class TestDocumentGeneratorApp(unittest.TestCase):
             'updates': [{
                 'row_id': rec['row_id'],
                 'row_hash': correct_hash,
-                'customer_po': 'NEW-PO'
+                'customer_po': 'NEW-PO',
+                'outbound_tracking': 'TRACKING-12345'
             }]
         }
         response = self.app.post(
@@ -430,6 +431,15 @@ class TestDocumentGeneratorApp(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         res_data = json.loads(response.data)
         self.assertTrue(res_data['success'])
+        
+        # Verify value in Excel
+        import openpyxl
+        wb_check = openpyxl.load_workbook(mock_xlsx_path)
+        ws_check = wb_check["MainSheet"]
+        saved_tracking = ws_check.cell(row=rec['row_id'], column=30).value
+        self.assertEqual(saved_tracking, 'TRACKING-12345')
+        wb_check.close()
+        
         print("  Allowed update with matching row hash verified.")
         
         # Restore old globals and cleanup

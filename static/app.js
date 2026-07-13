@@ -99,6 +99,7 @@ const inputOutboundL = document.getElementById('outbound_l');
 const inputOutboundW = document.getElementById('outbound_w');
 const inputOutboundH = document.getElementById('outbound_h');
 const inputCarrier = document.getElementById('outbound_carrier');
+const inputOutboundTracking = document.getElementById('outbound_tracking');
 const txtSoldTo = document.getElementById('sold_to_address');
 const txtShipTo = document.getElementById('ship_to_address');
 const inputFreeReplacement = document.getElementById('free_replacement_note');
@@ -777,6 +778,9 @@ function selectRow(record, trElement) {
     
     // Pre-fill Carrier
     inputCarrier.value = record.outbound_carrier || '';
+    if (inputOutboundTracking) {
+        inputOutboundTracking.value = record.outbound_tracking || '';
+    }
     
     // Set Addresses
     txtSoldTo.value = ADDRESSES[customerType].sold_to;
@@ -937,6 +941,7 @@ function handleSaveShippingChanges(e) {
     const shipToVal = txtShipTo.value.trim();
     const shippedDateVal = inputShippedDate.value.trim();
     const carrierVal = inputCarrier.value.trim();
+    const outboundTrackingVal = inputOutboundTracking ? inputOutboundTracking.value.trim() : '';
 
     // Outbound dimensions
     const outL = inputOutboundL.value.trim();
@@ -967,6 +972,7 @@ function handleSaveShippingChanges(e) {
             outbound_h: outH,
             shipped_date: shippedDateVal,
             outbound_carrier: carrierVal,
+            outbound_tracking: outboundTrackingVal,
             ship_to: shipToVal,
             line_num: lineNumVal,
             hs_code: hsCodeVal,
