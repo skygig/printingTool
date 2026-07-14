@@ -1,6 +1,7 @@
 import os
 import json
 import unittest
+import unittest.mock
 from app import app
 
 class TestDocumentGeneratorApp(unittest.TestCase):
@@ -449,6 +450,57 @@ class TestDocumentGeneratorApp(unittest.TestCase):
         app_module.CURRENT_HEADER_ROW = 1
         if os.path.exists(mock_xlsx_path):
             os.remove(mock_xlsx_path)
+
+    @unittest.mock.patch('urllib.request.urlopen')
+    def test_send_email_route(self, mock_urlopen):
+        print("Testing /api/send-email endpoint...")
+        # Mock successful Mailgun API response
+        mock_response = unittest.mock.MagicMock()
+        mock_response.__enter__.return_value = mock_response
+        mock_response.getcode.return_value = 200
+        mock_response.read.return_value = b'{"id":"<test-id>","message":"Queued. Thank you."}'
+        mock_urlopen.return_value = mock_response
+
+        payload = {
+            'customer_email': 'test@customer.com',
+            'record': {
+                'customer_po': '12345',
+                'rms_po': '9999',
+                'line_num': '1',
+                'shipped_date': '05/20/2026',
+                'outbound_date': '04/14/2026',
+                'outbound_weight': '2 LBS',
+                'outbound_l': '13',
+                'outbound_w': '11',
+                'outbound_h': '5',
+                'outbound_carrier': 'UPS',
+                'outbound_tracking': '1Z9999',
+                'customer': 'Test Customer',
+                'part_received': 'QTY 5 PN 12345 Test Item'
+            }
+        }
+        response = self.app.post(
+            '/api/send-email',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        res_data = json.loads(response.data)
+        self.assertTrue(res_data['success'])
+        self.assertIn('Queued. Thank you.', res_data['response'])
+        print("  /api/send-email success flow verified.")
+
+        # Test error handling when Mailgun fails
+        mock_urlopen.side_effect = Exception("Mailgun connection error")
+        response = self.app.post(
+            '/api/send-email',
+            data=json.dumps(payload),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 500)
+        res_data = json.loads(response.data)
+        self.assertIn('Failed to send email', res_data['error'])
+        print("  /api/send-email failure flow verified.")
 
     def test_authentication_flow(self):
         print("Testing Authentication and Authorization Flow...")

@@ -908,6 +908,178 @@ def update_records():
         return jsonify({'error': f"Failed to update records: {str(e)}"}), 500
 
 
+@app.route('/api/send-email', methods=['POST'])
+def send_email_route():
+    data = request.json
+    if not data or 'customer_email' not in data or 'record' not in data:
+        return jsonify({'error': 'Missing customer_email or record data'}), 400
+        
+    customer_email = data['customer_email'].strip()
+    record = data['record']
+    
+    if not customer_email:
+        return jsonify({'error': 'Customer email cannot be empty'}), 400
+        
+    # Construct email details
+    customer_po = record.get('customer_po', '').strip() or "N/A"
+    rms_po = record.get('rms_po', '').strip() or "N/A"
+    shipped_date = record.get('shipped_date', '').strip() or "N/A"
+    order_date = record.get('outbound_date', '').strip() or "N/A"
+    weight = record.get('outbound_weight', '').strip() or "N/A"
+    out_l = record.get('outbound_l', '').strip() or "N/A"
+    out_w = record.get('outbound_w', '').strip() or "N/A"
+    out_h = record.get('outbound_h', '').strip() or "N/A"
+    carrier = record.get('outbound_carrier', '').strip() or "N/A"
+    tracking = record.get('outbound_tracking', '').strip() or "N/A"
+    customer_name = record.get('customer', '').strip() or "Valued Customer"
+    
+    dimensions = f"{out_l} x {out_w} x {out_h} Inches"
+    if out_l == "N/A" and out_w == "N/A" and out_h == "N/A":
+        dimensions = "N/A"
+    
+    # Text fallback with only metadata (excluding Line Number)
+    body = (
+        f"Dear {customer_name},\n\n"
+        f"This is a shipment notification for your order. Please find the shipping and order metadata below:\n\n"
+        f"Customer P.O. / S.O. #: {customer_po}\n"
+        f"Shipping Date: {shipped_date}\n"
+        f"Order Date: {order_date}\n"
+        f"Weight (Lbs.): {weight}\n"
+        f"LxWxH (Inches): {dimensions}\n"
+        f"Carrier: {carrier}\n"
+        f"Tracking / Pro #: {tracking}\n\n"
+        f"If you have any questions, please feel free to contact us.\n\n"
+        f"Best regards,\n"
+        f"RMS Team"
+    )
+    
+    # Beautiful HTML table template (excluding Line Number)
+    html_body = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Shipment Notification</title>
+</head>
+<body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333333; background-color: #f4f6f8; padding: 20px 0; margin: 0; width: 100%; -webkit-font-smoothing: antialiased;">
+  <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); border: 1px solid #e1e4e8;">
+    <div style="background-color: #1a56db; color: #ffffff; padding: 24px; text-align: center;">
+      <h2 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: 0.5px;">Shipment Notification</h2>
+    </div>
+    <div style="padding: 30px;">
+      <p style="font-size: 15px; line-height: 1.5; margin: 0 0 16px 0;">Dear {customer_name},</p>
+      <p style="font-size: 15px; line-height: 1.5; margin: 0 0 24px 0;">This is a shipment notification for your order. Please find the shipping and order metadata below:</p>
+      
+      <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 25px;">
+        <tr style="background-color: #ffffff;">
+          <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eef2f6; font-weight: 600; color: #4b5563; width: 45%; font-size: 14px;">Customer P.O. / S.O. #</td>
+          <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eef2f6; color: #1f2937; font-size: 14px;">{customer_po}</td>
+        </tr>
+        <tr style="background-color: #f9fafb;">
+          <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eef2f6; font-weight: 600; color: #4b5563; width: 45%; font-size: 14px;">Shipping Date</td>
+          <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eef2f6; color: #1f2937; font-size: 14px;">{shipped_date}</td>
+        </tr>
+        <tr style="background-color: #ffffff;">
+          <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eef2f6; font-weight: 600; color: #4b5563; width: 45%; font-size: 14px;">Order Date</td>
+          <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eef2f6; color: #1f2937; font-size: 14px;">{order_date}</td>
+        </tr>
+        <tr style="background-color: #f9fafb;">
+          <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eef2f6; font-weight: 600; color: #4b5563; width: 45%; font-size: 14px;">Weight (Lbs.)</td>
+          <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eef2f6; color: #1f2937; font-size: 14px;">{weight}</td>
+        </tr>
+        <tr style="background-color: #ffffff;">
+          <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eef2f6; font-weight: 600; color: #4b5563; width: 45%; font-size: 14px;">LxWxH (Inches)</td>
+          <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eef2f6; color: #1f2937; font-size: 14px;">{dimensions}</td>
+        </tr>
+        <tr style="background-color: #f9fafb;">
+          <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eef2f6; font-weight: 600; color: #4b5563; width: 45%; font-size: 14px;">Carrier</td>
+          <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eef2f6; color: #1f2937; font-size: 14px;">{carrier}</td>
+        </tr>
+        <tr style="background-color: #ffffff;">
+          <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eef2f6; font-weight: 600; color: #4b5563; width: 45%; font-size: 14px;">Tracking / Pro #</td>
+          <td style="padding: 12px 16px; text-align: left; border-bottom: 1px solid #eef2f6; color: #1f2937; font-size: 14px; font-weight: bold;">{tracking}</td>
+        </tr>
+      </table>
+      
+      <p style="font-size: 15px; line-height: 1.5; margin: 0 0 20px 0;">If you have any questions, please feel free to contact us.</p>
+    </div>
+    <div style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #eef2f6; font-size: 13px; color: #6b7280;">
+      Best regards,<br>
+      <span style="font-weight: bold; color: #1f2937;">RMS Team</span>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    api_key = "a17cfc3e0583860e02fa41d4d666630a-9889a0ac-8a080308"
+    domain = "mail.devakash.in"
+    url = f"https://api.mailgun.net/v3/{domain}/messages"
+    
+    import base64
+    import urllib.request
+    import urllib.parse
+    
+    auth_str = f"api:{api_key}"
+    auth_b64 = base64.b64encode(auth_str.encode('utf-8')).decode('utf-8')
+    headers = {
+        "Authorization": f"Basic {auth_b64}",
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    
+    # 1. Send to Customer
+    customer_subject = f"Shipment Notification - RMS P.O. #{rms_po} / Customer P.O. #{customer_po}"
+    post_data_customer = {
+        "from": f"Mailgun Sandbox <postmaster@{domain}>",
+        "to": customer_email,
+        "subject": customer_subject,
+        "text": body,
+        "html": html_body
+    }
+    encoded_customer = urllib.parse.urlencode(post_data_customer).encode('utf-8')
+    req_customer = urllib.request.Request(url, data=encoded_customer, headers=headers, method="POST")
+    
+    # 2. Send to Team
+    team_subject = f"Copy of shipment email sent Customer: {customer_po}"
+    team_emails = ["rajan@rmsint.net", "sales@rmsint.net"]
+    team_to_str = ", ".join(team_emails)
+    post_data_team = {
+        "from": f"Mailgun Sandbox <postmaster@{domain}>",
+        "to": team_to_str,
+        "subject": team_subject,
+        "text": body,
+        "html": html_body
+    }
+    encoded_team = urllib.parse.urlencode(post_data_team).encode('utf-8')
+    req_team = urllib.request.Request(url, data=encoded_team, headers=headers, method="POST")
+    
+    try:
+        # Send customer email
+        with urllib.request.urlopen(req_customer) as response_cust:
+            res_body_cust = response_cust.read().decode('utf-8')
+            
+        # Send team email (fail-safe wrapper)
+        try:
+            with urllib.request.urlopen(req_team) as response_team:
+                pass
+        except Exception as e_team:
+            print(f"Error sending email to team: {e_team}")
+            
+        return jsonify({
+            'success': True,
+            'message': 'Email sent successfully!',
+            'response': res_body_cust
+        })
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        error_body = ""
+        if hasattr(e, 'read'):
+            try:
+                error_body = e.read().decode('utf-8')
+            except Exception:
+                pass
+        err_msg = f"{str(e)}: {error_body}" if error_body else str(e)
+        return jsonify({'error': f"Failed to send email: {err_msg}"}), 500
+
+
 def load_dotenv():
     env_path = os.path.join(BASE_DIR, '.env')
     if os.path.exists(env_path):

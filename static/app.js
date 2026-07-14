@@ -104,6 +104,8 @@ const txtSoldTo = document.getElementById('sold_to_address');
 const txtShipTo = document.getElementById('ship_to_address');
 const inputFreeReplacement = document.getElementById('free_replacement_note');
 const txtNotesList = document.getElementById('notes_list');
+const inputCustomerEmail = document.getElementById('customer_email');
+const btnSendEmail = document.getElementById('btn-send-email');
 
 // Initialize App
 window.addEventListener('DOMContentLoaded', () => {
@@ -115,6 +117,7 @@ window.addEventListener('DOMContentLoaded', () => {
     nextPageBtn.addEventListener('click', () => changePage(1));
     generatorForm.addEventListener('submit', handleFormSubmit);
     if (btnSaveShippingChanges) btnSaveShippingChanges.addEventListener('click', handleSaveShippingChanges);
+    if (btnSendEmail) btnSendEmail.addEventListener('click', handleSendEmail);
     btnShowInFolder.addEventListener('click', openOutputsFolder);
     
     btnPickFile.addEventListener('click', triggerFilePicker);
@@ -781,6 +784,15 @@ function selectRow(record, trElement) {
     if (inputOutboundTracking) {
         inputOutboundTracking.value = record.outbound_tracking || '';
     }
+
+    if (inputCustomerEmail) {
+        const contact = (record.customer_contact || '').trim();
+        if (contact.includes('@')) {
+            inputCustomerEmail.value = contact;
+        } else {
+            inputCustomerEmail.value = '';
+        }
+    }
     
     // Set Addresses
     txtSoldTo.value = ADDRESSES[customerType].sold_to;
@@ -1006,6 +1018,92 @@ function handleSaveShippingChanges(e) {
         saveBtn.innerHTML = originalText;
         showToast("Server Error", "An error occurred while saving changes.", null, true);
         console.error("Save Changes Error:", err);
+    });
+}
+
+function handleSendEmail(e) {
+    if (!selectedRecord) {
+        showToast("Error", "No record selected.", null, true);
+        return;
+    }
+    
+    const emailVal = inputCustomerEmail.value.trim();
+    if (!emailVal) {
+        showToast("Validation Error", "Please enter a customer email address.", null, true);
+        inputCustomerEmail.focus();
+        return;
+    }
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailVal)) {
+        showToast("Validation Error", "Please enter a valid email address.", null, true);
+        inputCustomerEmail.focus();
+        return;
+    }
+    
+    btnSendEmail.disabled = true;
+    const originalContent = btnSendEmail.innerHTML;
+    btnSendEmail.innerHTML = `<span class="btn-icon">⏳</span> Sending...`;
+    
+    const customerPoVal = inputCustomerPo.value.trim();
+    const orderDateVal = inputOrderDate.value.trim();
+    const weightVal = inputWeight.value.trim();
+    const shipToVal = txtShipTo.value.trim();
+    const shippedDateVal = inputShippedDate.value.trim();
+    const carrierVal = inputCarrier.value.trim();
+    const outboundTrackingVal = inputOutboundTracking ? inputOutboundTracking.value.trim() : '';
+    
+    const cards = document.querySelectorAll('.item-edit-card');
+    let partReceivedVal = selectedRecord.part_received;
+    if (cards.length > 0) {
+        const lines = [];
+        cards.forEach(card => {
+            const qtyVal = card.querySelector('.item-qty').value.trim();
+            const partNumVal = card.querySelector('.item-part-num').value.trim();
+            const descVal = card.querySelector('.item-part-desc').value.trim();
+            lines.push(`QTY ${qtyVal} PN ${partNumVal} ${descVal}`);
+        });
+        partReceivedVal = lines.join('\n');
+    }
+    
+    const recordPayload = {
+        ...selectedRecord,
+        customer_po: customerPoVal,
+        outbound_date: orderDateVal,
+        outbound_weight: weightVal,
+        shipped_date: shippedDateVal,
+        outbound_carrier: carrierVal,
+        outbound_tracking: outboundTrackingVal,
+        ship_to: shipToVal,
+        part_received: partReceivedVal
+    };
+    
+    fetch('/api/send-email', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            customer_email: emailVal,
+            record: recordPayload
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => { throw new Error(err.error || 'Server error'); });
+        }
+        return response.json();
+    })
+    .then(data => {
+        showToast("Success", "Email sent successfully!", null, false);
+        btnSendEmail.disabled = false;
+        btnSendEmail.innerHTML = originalContent;
+    })
+    .catch(err => {
+        showToast("Error Sending Email", err.message, null, true);
+        btnSendEmail.disabled = false;
+        btnSendEmail.innerHTML = originalContent;
+        console.error("Email Error:", err);
     });
 }
 
