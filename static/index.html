@@ -208,6 +208,13 @@
                             </div>
                         </div>
 
+                        <!-- Shipping Captures Button Only (re-positioned) -->
+                        <div style="border-top: 1px dashed var(--card-border); padding-top: 18px; margin-top: 10px; margin-bottom: 20px;">
+                            <button type="button" class="btn btn-secondary" id="btn-capture-images-popup" style="width: 100%;">
+                                <span class="btn-icon">📷</span> Capture a image
+                            </button>
+                        </div>
+
                         <div class="form-section-title">Addresses</div>
                         <div class="form-grid">
                             <div class="form-group span-2">
@@ -652,6 +659,43 @@
                     Sign In
                 </button>
             </form>
+        </div>
+    </div>
+
+    <!-- Shipping Captures Modal -->
+    <div id="captures-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Select Shipping Captures</h3>
+                <span class="close-modal" id="close-captures-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- Outbound Destination Path Section (moved here) -->
+                <div style="margin-bottom: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 18px;">
+                    <label style="display: block; font-size: 13px; font-weight: 600; color: #1e293b; margin-bottom: 8px;">
+                        Outbound Shipping Captures Destination Path
+                    </label>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="text" id="shipping_captures_path" style="flex-grow: 1; margin: 0; font-family: monospace; font-size: 12px; height: 38px; background: #ffffff; border: 1px solid #cbd5e1; color: #1e293b; padding: 0 12px; border-radius: 8px; outline: none;" placeholder="Folder Path...">
+                        <button type="button" class="btn btn-secondary" id="btn-browse-captures-folder" style="width: auto; padding: 0 16px; margin: 0; height: 38px; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; white-space: nowrap; background: #f8fafc; border: 1px solid #cbd5e1; color: #1e293b;">
+                            📂 Browse
+                        </button>
+                    </div>
+                </div>
+
+                <p style="font-size: 13px; color: #64748b; margin-bottom: 15px;">
+                    Select captured images to link to this shipping record:
+                </p>
+                <div id="captures-grid" class="captures-grid">
+                    <!-- Captured images will load here dynamically -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="btn-refresh-captures" style="width: auto;">🔄 Refresh</button>
+                <button type="button" class="btn btn-primary" id="btn-link-images" style="width: auto; margin-left: auto;" disabled>
+                    🔗 Link images to current shipping
+                </button>
+            </div>
         </div>
     </div>
 

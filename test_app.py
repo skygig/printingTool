@@ -574,6 +574,69 @@ class TestDocumentGeneratorApp(unittest.TestCase):
         app.config['TESTING'] = True
         print("  Authentication and role-based authorization tests passed successfully!")
 
+    @unittest.mock.patch('pymongo.MongoClient')
+    def test_shipping_captures_flow(self, mock_client_class):
+        print("Testing /api/shipping-captures and /api/link-shipping-images endpoints...")
+        
+        # Mock mongodb find
+        mock_client = unittest.mock.MagicMock()
+        mock_client_class.return_value = mock_client
+        mock_db = mock_client.__getitem__.return_value
+        mock_collection = mock_db.__getitem__.return_value
+        
+        from datetime import datetime
+        mock_doc = {
+            '_id': '64b0f9f3f9f3f9f3f9f3f9f3',
+            'image': 'data:image/jpeg;base64,dGVzdA==', # base64 of 'test'
+            'capturedAt': datetime(2026, 7, 16, 3, 20, 28),
+            'username': 'raj@rmsint.net'
+        }
+        
+        # Configure find cursor
+        mock_cursor = [mock_doc]
+        mock_sorted = unittest.mock.MagicMock()
+        mock_sorted.__iter__.return_value = iter(mock_cursor)
+        mock_collection.find.return_value.sort.return_value = mock_sorted
+        
+        # 1. Test GET /api/shipping-captures
+        response = self.app.get('/api/shipping-captures')
+        self.assertEqual(response.status_code, 200)
+        res_data = json.loads(response.data)
+        self.assertTrue(res_data['success'])
+        self.assertEqual(len(res_data['captures']), 1)
+        self.assertEqual(res_data['captures'][0]['id'], '64b0f9f3f9f3f9f3f9f3f9f3')
+        print("  /api/shipping-captures GET verified.")
+        
+        # 2. Test POST /api/link-shipping-images
+        mock_collection.find_one.return_value = mock_doc
+        
+        # Mock os.makedirs and open to prevent actual file writes
+        with unittest.mock.patch('os.makedirs') as mock_makedirs, \
+             unittest.mock.patch('builtins.open', unittest.mock.mock_open()) as mock_file:
+            
+            payload = {
+                'image_ids': ['64b0f9f3f9f3f9f3f9f3f9f3'],
+                'folder_path': 'Z:/shipping_captures/Test Customer_PO12345',
+                'row_id': 2,
+                'customer_po': 'PO12345'
+            }
+            
+            response = self.app.post(
+                '/api/link-shipping-images',
+                data=json.dumps(payload),
+                content_type='application/json'
+            )
+            
+            self.assertEqual(response.status_code, 200)
+            res_data = json.loads(response.data)
+            self.assertTrue(res_data['success'])
+            self.assertIn('Successfully linked 1 images', res_data['message'])
+            
+            mock_makedirs.assert_called_once_with('Z:/shipping_captures/Test Customer_PO12345', exist_ok=True)
+            mock_file.assert_called_once()
+            mock_collection.delete_one.assert_called_once()
+            print("  /api/link-shipping-images POST verified.")
+
 if __name__ == '__main__':
     unittest.main()
 

@@ -106,6 +106,14 @@ const inputFreeReplacement = document.getElementById('free_replacement_note');
 const txtNotesList = document.getElementById('notes_list');
 const inputCustomerEmail = document.getElementById('customer_email');
 const btnSendEmail = document.getElementById('btn-send-email');
+const btnCaptureImagesPopup = document.getElementById('btn-capture-images-popup');
+const capturesModal = document.getElementById('captures-modal');
+const closeCapturesModal = document.getElementById('close-captures-modal');
+const capturesGrid = document.getElementById('captures-grid');
+const btnRefreshCaptures = document.getElementById('btn-refresh-captures');
+const btnLinkImages = document.getElementById('btn-link-images');
+const btnBrowseCapturesFolder = document.getElementById('btn-browse-captures-folder');
+const shippingCapturesPath = document.getElementById('shipping_captures_path');
 
 // Initialize App
 window.addEventListener('DOMContentLoaded', () => {
@@ -118,6 +126,12 @@ window.addEventListener('DOMContentLoaded', () => {
     generatorForm.addEventListener('submit', handleFormSubmit);
     if (btnSaveShippingChanges) btnSaveShippingChanges.addEventListener('click', handleSaveShippingChanges);
     if (btnSendEmail) btnSendEmail.addEventListener('click', handleSendEmail);
+    if (btnCaptureImagesPopup) btnCaptureImagesPopup.addEventListener('click', openCapturesModalHandler);
+    if (closeCapturesModal) closeCapturesModal.addEventListener('click', closeCapturesModalHandler);
+    if (btnRefreshCaptures) btnRefreshCaptures.addEventListener('click', refreshCapturesHandler);
+    if (btnLinkImages) btnLinkImages.addEventListener('click', linkImagesHandler);
+    if (btnBrowseCapturesFolder) btnBrowseCapturesFolder.addEventListener('click', handleBrowseCapturesFolder);
+    if (inputCustomerPo) inputCustomerPo.addEventListener('input', updateCapturesPath);
     btnShowInFolder.addEventListener('click', openOutputsFolder);
     
     btnPickFile.addEventListener('click', triggerFilePicker);
@@ -810,6 +824,7 @@ function selectRow(record, trElement) {
     // Reset toast and scroll editor card into view
     closeToast();
     loadGeneratedFiles(record); // Clear/Load file list for the new selection
+    updateCapturesPath();
     document.getElementById('editor-card').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -2078,5 +2093,204 @@ function handleReceivingSave(e) {
         saveBtn.innerHTML = originalText;
         showToast("Server Error", "An error occurred on the server.", null, true);
         console.error("Save receiving error:", err);
+    });
+}
+
+let selectedCaptureIds = new Set();
+
+function openCapturesModalHandler() {
+    if (!selectedRecord) {
+        showToast("Error", "No record selected.", null, true);
+        return;
+    }
+    
+    selectedCaptureIds.clear();
+    if (btnLinkImages) {
+        btnLinkImages.disabled = true;
+    }
+    if (capturesModal) {
+        capturesModal.classList.remove('hidden');
+    }
+    loadCaptures();
+}
+
+function closeCapturesModalHandler() {
+    if (capturesModal) {
+        capturesModal.classList.add('hidden');
+    }
+}
+
+function refreshCapturesHandler() {
+    loadCaptures();
+}
+
+function loadCaptures() {
+    if (!capturesGrid) return;
+    
+    capturesGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-secondary);">⏳ Loading captures...</div>`;
+    
+    fetch('/api/shipping-captures')
+    .then(res => res.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(data.error || "Failed to fetch captures");
+        }
+        
+        const captures = data.captures || [];
+        if (captures.length === 0) {
+            capturesGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-secondary);">📷 No shipping captures found in database.</div>`;
+            return;
+        }
+        
+        capturesGrid.innerHTML = '';
+        captures.forEach(cap => {
+            const card = document.createElement('div');
+            card.className = `capture-card ${selectedCaptureIds.has(cap.id) ? 'selected' : ''}`;
+            card.setAttribute('data-id', cap.id);
+            
+            let timeStr = cap.capturedAt;
+            try {
+                const date = new Date(cap.capturedAt);
+                timeStr = date.toLocaleString();
+            } catch(e) {}
+            
+            card.innerHTML = `
+                <div class="capture-image-wrapper">
+                    <img src="${cap.image}" class="capture-image" alt="Capture">
+                </div>
+                <div class="capture-details">
+                    <span class="capture-meta-item user-badge">${cap.username || 'unknown'}</span>
+                    <span class="capture-meta-item time-label">📅 ${timeStr}</span>
+                </div>
+            `;
+            
+            card.addEventListener('click', () => {
+                const id = cap.id;
+                if (selectedCaptureIds.has(id)) {
+                    selectedCaptureIds.delete(id);
+                    card.classList.remove('selected');
+                } else {
+                    selectedCaptureIds.add(id);
+                    card.classList.add('selected');
+                }
+                
+                if (btnLinkImages) {
+                    btnLinkImages.disabled = selectedCaptureIds.size === 0;
+                }
+            });
+            
+            capturesGrid.appendChild(card);
+        });
+    })
+    .catch(err => {
+        console.error("Load Captures Error:", err);
+        capturesGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #f87171;">⚠️ Error: ${err.message || "Failed to load captures"}</div>`;
+    });
+}
+
+let customBaseDirectory = "";
+
+function updateCapturesPath() {
+    if (!selectedRecord) return;
+    const customerName = (selectedRecord.customer || '').trim();
+    const customerPo = inputCustomerPo.value.trim();
+    const cleanCustomer = customerName.replace(/[^a-zA-Z0-9\s-_]/g, '');
+    const cleanPo = customerPo.replace(/[^a-zA-Z0-9\s-_]/g, '');
+    const folderName = `${cleanCustomer}_${cleanPo}`;
+    
+    const baseDir = customBaseDirectory || "Z:/shipping_captures";
+    const finalPath = `${baseDir}/${folderName}`;
+    
+    if (shippingCapturesPath) {
+        shippingCapturesPath.value = finalPath;
+    }
+}
+
+function handleBrowseCapturesFolder() {
+    if (btnBrowseCapturesFolder) {
+        btnBrowseCapturesFolder.disabled = true;
+        btnBrowseCapturesFolder.innerHTML = `⏳ Browsing...`;
+    }
+    
+    fetch('/api/browse-directory', {
+        method: 'POST'
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (btnBrowseCapturesFolder) {
+            btnBrowseCapturesFolder.disabled = false;
+            btnBrowseCapturesFolder.innerHTML = `📂 Browse`;
+        }
+        
+        if (data.success && data.directory) {
+            customBaseDirectory = data.directory;
+            updateCapturesPath();
+            showToast("Directory Updated", `Base directory set to: ${data.directory}`, null, false);
+        } else if (data.message) {
+            console.log(data.message);
+        } else if (data.error) {
+            showToast("Browse Error", data.error, null, true);
+        }
+    })
+    .catch(err => {
+        console.error("Browse Directory Error:", err);
+        showToast("Error", "Could not trigger local directory selector.", null, true);
+        if (btnBrowseCapturesFolder) {
+            btnBrowseCapturesFolder.disabled = false;
+            btnBrowseCapturesFolder.innerHTML = `📂 Browse`;
+        }
+    });
+}
+
+function linkImagesHandler() {
+    if (!selectedRecord) return;
+    if (selectedCaptureIds.size === 0) return;
+    
+    const folderPath = (shippingCapturesPath ? shippingCapturesPath.value : '').trim();
+    if (!folderPath) {
+        showToast("Validation Error", "Please ensure the destination folder path is specified.", null, true);
+        return;
+    }
+    
+    if (btnLinkImages) {
+        btnLinkImages.disabled = true;
+        btnLinkImages.innerHTML = `⏳ Linking...`;
+    }
+    
+    fetch('/api/link-shipping-images', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            image_ids: Array.from(selectedCaptureIds),
+            folder_path: folderPath,
+            row_id: selectedRecord.row_id,
+            customer_po: inputCustomerPo.value.trim()
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (btnLinkImages) {
+            btnLinkImages.innerHTML = `🔗 Link images to current shipping`;
+        }
+        
+        if (data.success) {
+            showToast("Linked Successfully", data.message, null, false);
+            closeCapturesModalHandler();
+        } else {
+            showToast("Linking Error", data.error || "Failed to link images", null, true);
+            if (btnLinkImages) {
+                btnLinkImages.disabled = false;
+            }
+        }
+    })
+    .catch(err => {
+        console.error("Link Images Error:", err);
+        showToast("Server Error", "An error occurred while linking images.", null, true);
+        if (btnLinkImages) {
+            btnLinkImages.innerHTML = `🔗 Link images to current shipping`;
+            btnLinkImages.disabled = false;
+        }
     });
 }

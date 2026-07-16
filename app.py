@@ -767,6 +767,25 @@ def ensure_receiving_headers_excel(sheet, header_row_idx):
     return boxes_idx, photo_idx, report_idx
 
 
+def ensure_captures_header_excel(sheet, header_row_idx):
+    max_col = sheet.max_column
+    headers = [sheet.cell(row=header_row_idx, column=c).value for c in range(1, max_col + 1)]
+    headers_clean = [str(h).strip().lower() if h is not None else "" for h in headers]
+    
+    captures_idx = -1
+    for i, h in enumerate(headers_clean):
+        if h == "captures":
+            captures_idx = i + 1
+            break
+            
+    if captures_idx == -1:
+        new_col = len(headers) + 1
+        sheet.cell(row=header_row_idx, column=new_col, value="Captures")
+        captures_idx = new_col
+        
+    return captures_idx
+
+
 def update_excel_records(file_path, sheet_name, header_row_idx, updates):
     wb = openpyxl.load_workbook(file_path)
     if not sheet_name or sheet_name not in wb.sheetnames:
@@ -1133,6 +1152,162 @@ def check_scans():
     except Exception as e:
         print(f"Error querying MongoDB: {e}")
         return jsonify({'error': f"Database query failed: {str(e)}"}), 500
+
+
+@app.route('/api/shipping-captures')
+def get_shipping_captures():
+    from pymongo import MongoClient
+    mongo_uri = os.environ.get('MONGODB_URI')
+    db_name = os.environ.get('MONGODB_DB', 'scanner_db')
+    if not mongo_uri:
+        return jsonify({'error': 'MongoDB MONGODB_URI not configured in .env file.'}), 500
+        
+    try:
+        client = MongoClient(mongo_uri)
+        db = client[db_name]
+        collection = db['shipping_captures']
+        
+        captures_cursor = collection.find({}).sort('capturedAt', -1)
+        
+        captures = []
+        for doc in captures_cursor:
+            captured_at_str = ""
+            if doc.get('capturedAt'):
+                captured_at_str = doc.get('capturedAt').isoformat() if hasattr(doc.get('capturedAt'), 'isoformat') else str(doc.get('capturedAt'))
+            captures.append({
+                'id': str(doc['_id']),
+                'image': doc.get('image', ''),
+                'capturedAt': captured_at_str,
+                'username': doc.get('username', '')
+            })
+            
+        client.close()
+        return jsonify({'success': True, 'captures': captures})
+    except Exception as e:
+        print(f"Error querying shipping captures: {e}")
+        return jsonify({'error': f"Failed to query database: {str(e)}"}), 500
+
+
+@app.route('/api/link-shipping-images', methods=['POST'])
+def link_shipping_images():
+    from pymongo import MongoClient
+    from bson.objectid import ObjectId
+    import base64
+    
+    data = request.json
+    if not data or 'image_ids' not in data or 'folder_path' not in data:
+        return jsonify({'error': 'Missing required parameters'}), 400
+        
+    image_ids = data['image_ids']
+    folder_path = data['folder_path'].strip()
+    row_id = data.get('row_id')
+    customer_po = data.get('customer_po', '').strip() or "capture"
+    
+    if not image_ids:
+        return jsonify({'error': 'No images selected'}), 400
+    if not folder_path:
+        return jsonify({'error': 'Folder path cannot be empty'}), 400
+        
+    mongo_uri = os.environ.get('MONGODB_URI')
+    db_name = os.environ.get('MONGODB_DB', 'scanner_db')
+    if not mongo_uri:
+        return jsonify({'error': 'MongoDB MONGODB_URI not configured in .env file.'}), 500
+        
+    try:
+        client = MongoClient(mongo_uri)
+        db = client[db_name]
+        collection = db['shipping_captures']
+        
+        try:
+            os.makedirs(folder_path, exist_ok=True)
+        except Exception as e_fs:
+            client.close()
+            return jsonify({'error': f"Failed to access/create directory {folder_path}. Make sure the destination path is connectable and writeable: {str(e_fs)}"}), 500
+            
+        import time
+        saved_count = 0
+        deleted_count = 0
+        saved_file_paths = []
+        
+        for idx, img_id in enumerate(image_ids):
+            # Fetch from MongoDB
+            doc = collection.find_one({'_id': ObjectId(img_id)})
+            if not doc:
+                continue
+                
+            image_data_url = doc.get('image', '')
+            if not image_data_url or ',' not in image_data_url:
+                continue
+                
+            # Decode base64
+            header, base64_data = image_data_url.split(',', 1)
+            image_bytes = base64.b64decode(base64_data)
+            
+            # Save locally
+            timestamp = int(time.time())
+            filename = f"capture_{timestamp}_{idx}_{img_id}.jpg"
+            file_path = os.path.join(folder_path, filename)
+            
+            with open(file_path, 'wb') as f:
+                f.write(image_bytes)
+            saved_count += 1
+            saved_file_paths.append(file_path)
+            
+            # Delete from DB
+            collection.delete_one({'_id': ObjectId(img_id)})
+            deleted_count += 1
+            
+        client.close()
+        
+        # Construct and write Excel hyperlink formulas
+        if saved_file_paths and row_id and os.path.exists(CURRENT_DB_PATH):
+            formulas = []
+            for i, fp in enumerate(saved_file_paths):
+                win_path = os.path.normpath(fp).replace('/', '\\')
+                file_url = f"file:///{win_path}"
+                friendly_name = f"{customer_po}.jpg" if len(saved_file_paths) == 1 else f"{customer_po}_{i + 1}.jpg"
+                formulas.append(f'HYPERLINK("{file_url}", "{friendly_name}")')
+                
+            formula_val = "=" + " & \", \" & ".join(formulas)
+            
+            wb = openpyxl.load_workbook(CURRENT_DB_PATH)
+            sheet = wb[CURRENT_SHEET] if CURRENT_SHEET in wb.sheetnames else wb.active
+            
+            captures_col = ensure_captures_header_excel(sheet, CURRENT_HEADER_ROW)
+            sheet.cell(row=int(row_id), column=captures_col, value=formula_val)
+            
+            wb.save(CURRENT_DB_PATH)
+            wb.close()
+            
+        return jsonify({
+            'success': True,
+            'message': f"Successfully linked {saved_count} images to shipping. Saved in {folder_path} and removed from database."
+        })
+    except Exception as e:
+        print(f"Error linking shipping images: {e}")
+        return jsonify({'error': f"Failed to link images: {str(e)}"}), 500
+
+
+@app.route('/api/browse-directory', methods=['POST'])
+def browse_directory():
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        
+        directory = filedialog.askdirectory(title="Select Shipping Captures Base Directory")
+        root.destroy()
+        
+        if directory:
+            return jsonify({'success': True, 'directory': directory})
+        else:
+            return jsonify({'success': False, 'message': 'No directory selected'})
+    except Exception as e:
+        print(f"Error opening directory dialog: {e}")
+        return jsonify({'error': f"Could not open directory browser: {str(e)}"}), 500
 
 
 @app.route('/api/generated-files')
