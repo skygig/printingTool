@@ -1128,7 +1128,7 @@ def check_scans():
         return jsonify({'error': 'MongoDB MONGODB_URI not configured in .env file.'}), 500
         
     try:
-        client = MongoClient(mongo_uri)
+        client = MongoClient(mongo_uri, tlsAllowInvalidCertificates=True)
         db = client[db_name]
         collection = db['scans']
         
@@ -1163,7 +1163,7 @@ def get_shipping_captures():
         return jsonify({'error': 'MongoDB MONGODB_URI not configured in .env file.'}), 500
         
     try:
-        client = MongoClient(mongo_uri)
+        client = MongoClient(mongo_uri, tlsAllowInvalidCertificates=True)
         db = client[db_name]
         collection = db['shipping_captures']
         
@@ -1214,7 +1214,7 @@ def link_shipping_images():
         return jsonify({'error': 'MongoDB MONGODB_URI not configured in .env file.'}), 500
         
     try:
-        client = MongoClient(mongo_uri)
+        client = MongoClient(mongo_uri, tlsAllowInvalidCertificates=True)
         db = client[db_name]
         collection = db['shipping_captures']
         
