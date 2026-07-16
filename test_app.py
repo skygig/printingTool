@@ -574,29 +574,23 @@ class TestDocumentGeneratorApp(unittest.TestCase):
         app.config['TESTING'] = True
         print("  Authentication and role-based authorization tests passed successfully!")
 
-    @unittest.mock.patch('pymongo.MongoClient')
-    def test_shipping_captures_flow(self, mock_client_class):
+    @unittest.mock.patch('app.fetch_from_scanner_api')
+    def test_shipping_captures_flow(self, mock_fetch):
         print("Testing /api/shipping-captures and /api/link-shipping-images endpoints...")
         
-        # Mock mongodb find
-        mock_client = unittest.mock.MagicMock()
-        mock_client_class.return_value = mock_client
-        mock_db = mock_client.__getitem__.return_value
-        mock_collection = mock_db.__getitem__.return_value
-        
-        from datetime import datetime
         mock_doc = {
-            '_id': '64b0f9f3f9f3f9f3f9f3f9f3',
+            'id': '64b0f9f3f9f3f9f3f9f3f9f3',
             'image': 'data:image/jpeg;base64,dGVzdA==', # base64 of 'test'
-            'capturedAt': datetime(2026, 7, 16, 3, 20, 28),
+            'capturedAt': '2026-07-16T03:20:28',
             'username': 'raj@rmsint.net'
         }
         
-        # Configure find cursor
-        mock_cursor = [mock_doc]
-        mock_sorted = unittest.mock.MagicMock()
-        mock_sorted.__iter__.return_value = iter(mock_cursor)
-        mock_collection.find.return_value.sort.return_value = mock_sorted
+        # Configure fetch_from_scanner_api return value for GET /api/shipping-capture
+        mock_fetch.return_value = {
+            'success': True,
+            'captures': [mock_doc],
+            'scans': []
+        }
         
         # 1. Test GET /api/shipping-captures
         response = self.app.get('/api/shipping-captures')
@@ -608,8 +602,6 @@ class TestDocumentGeneratorApp(unittest.TestCase):
         print("  /api/shipping-captures GET verified.")
         
         # 2. Test POST /api/link-shipping-images
-        mock_collection.find_one.return_value = mock_doc
-        
         # Mock os.makedirs and open to prevent actual file writes
         with unittest.mock.patch('os.makedirs') as mock_makedirs, \
              unittest.mock.patch('builtins.open', unittest.mock.mock_open()) as mock_file:
@@ -634,9 +626,14 @@ class TestDocumentGeneratorApp(unittest.TestCase):
             
             mock_makedirs.assert_called_once_with('Z:/shipping_captures/Test Customer_PO12345', exist_ok=True)
             mock_file.assert_called_once()
-            mock_collection.delete_one.assert_called_once()
+            
+            # Verify fetch_from_scanner_api was called to delete
+            mock_fetch.assert_any_call('/api/shipping-capture', method='POST', payload={
+                'action': 'delete',
+                'image_ids': ['64b0f9f3f9f3f9f3f9f3f9f3']
+            })
             print("  /api/link-shipping-images POST verified.")
-
+            
 if __name__ == '__main__':
     unittest.main()
 

@@ -1117,82 +1117,57 @@ def load_dotenv():
 load_dotenv()
 
 
-@app.route('/api/check-scans')
-def check_scans():
-    from pymongo import MongoClient
-    from datetime import datetime, timedelta, timezone
+def fetch_from_scanner_api(endpoint, method='GET', payload=None):
+    import urllib.request
+    import json
+    import os
     
-    mongo_uri = os.environ.get('MONGODB_URI')
-    db_name = os.environ.get('MONGODB_DB', 'scanner_db')
-    if not mongo_uri:
-        return jsonify({'error': 'MongoDB MONGODB_URI not configured in .env file.'}), 500
+    scanner_url = os.environ.get('SCANNER_APP_URL', 'https://rms-scanner.vercel.app')
+    token = os.environ.get('SHARED_API_TOKEN', 'd4b8e21a-7b3e-4d56-bc98-fa39e6a39281')
+    
+    url = f"{scanner_url.rstrip('/')}{endpoint}"
+    req = urllib.request.Request(url, method=method)
+    req.add_header('Authorization', f'Bearer {token}')
+    req.add_header('Content-Type', 'application/json')
+    
+    data_bytes = None
+    if payload is not None:
+        data_bytes = json.dumps(payload).encode('utf-8')
         
     try:
-        client = MongoClient(mongo_uri, tlsAllowInvalidCertificates=True)
-        db = client[db_name]
-        collection = db['scans']
+        import ssl
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
         
-        # Scanned in the last 5 minutes (timezone-aware UTC)
-        five_mins_ago = datetime.now(timezone.utc) - timedelta(minutes=5)
-        
-        # Find scans and sort newest first
-        scans_cursor = collection.find({'scannedAt': {'$gte': five_mins_ago}}).sort('scannedAt', -1)
-        
-        scans = []
-        for doc in scans_cursor:
-            scans.append({
-                'id': str(doc['_id']),
-                'trackingId': doc.get('trackingId', ''),
-                'scannedAt': doc.get('scannedAt').isoformat() if isinstance(doc.get('scannedAt'), datetime) else str(doc.get('scannedAt')),
-                'username': doc.get('username', '')
-            })
-            
-        client.close()
-        return jsonify({'success': True, 'scans': scans})
+        with urllib.request.urlopen(req, data=data_bytes, timeout=10, context=ctx) as response:
+            res_data = response.read().decode('utf-8')
+            return json.loads(res_data)
     except Exception as e:
-        print(f"Error querying MongoDB: {e}")
-        return jsonify({'error': f"Database query failed: {str(e)}"}), 500
+        print(f"Error fetching from scanner API {url}: {e}")
+        return {'success': False, 'error': str(e)}
+
+
+@app.route('/api/check-scans')
+def check_scans():
+    res = fetch_from_scanner_api('/api/scan')
+    if not res.get('success'):
+        return jsonify({'error': f"Failed to fetch scans from scanner app: {res.get('error')}"}), 500
+    return jsonify({'success': True, 'scans': res.get('scans', [])})
 
 
 @app.route('/api/shipping-captures')
 def get_shipping_captures():
-    from pymongo import MongoClient
-    mongo_uri = os.environ.get('MONGODB_URI')
-    db_name = os.environ.get('MONGODB_DB', 'scanner_db')
-    if not mongo_uri:
-        return jsonify({'error': 'MongoDB MONGODB_URI not configured in .env file.'}), 500
-        
-    try:
-        client = MongoClient(mongo_uri, tlsAllowInvalidCertificates=True)
-        db = client[db_name]
-        collection = db['shipping_captures']
-        
-        captures_cursor = collection.find({}).sort('capturedAt', -1)
-        
-        captures = []
-        for doc in captures_cursor:
-            captured_at_str = ""
-            if doc.get('capturedAt'):
-                captured_at_str = doc.get('capturedAt').isoformat() if hasattr(doc.get('capturedAt'), 'isoformat') else str(doc.get('capturedAt'))
-            captures.append({
-                'id': str(doc['_id']),
-                'image': doc.get('image', ''),
-                'capturedAt': captured_at_str,
-                'username': doc.get('username', '')
-            })
-            
-        client.close()
-        return jsonify({'success': True, 'captures': captures})
-    except Exception as e:
-        print(f"Error querying shipping captures: {e}")
-        return jsonify({'error': f"Failed to query database: {str(e)}"}), 500
+    res = fetch_from_scanner_api('/api/shipping-capture')
+    if not res.get('success'):
+        return jsonify({'error': f"Failed to fetch captures from scanner app: {res.get('error')}"}), 500
+    return jsonify({'success': True, 'captures': res.get('captures', [])})
 
 
 @app.route('/api/link-shipping-images', methods=['POST'])
 def link_shipping_images():
-    from pymongo import MongoClient
-    from bson.objectid import ObjectId
     import base64
+    import os
     
     data = request.json
     if not data or 'image_ids' not in data or 'folder_path' not in data:
@@ -1208,30 +1183,26 @@ def link_shipping_images():
     if not folder_path:
         return jsonify({'error': 'Folder path cannot be empty'}), 400
         
-    mongo_uri = os.environ.get('MONGODB_URI')
-    db_name = os.environ.get('MONGODB_DB', 'scanner_db')
-    if not mongo_uri:
-        return jsonify({'error': 'MongoDB MONGODB_URI not configured in .env file.'}), 500
-        
     try:
-        client = MongoClient(mongo_uri, tlsAllowInvalidCertificates=True)
-        db = client[db_name]
-        collection = db['shipping_captures']
-        
         try:
             os.makedirs(folder_path, exist_ok=True)
         except Exception as e_fs:
-            client.close()
-            return jsonify({'error': f"Failed to access/create directory {folder_path}. Make sure the destination path is connectable and writeable: {str(e_fs)}"}), 500
+            return jsonify({'error': f"Failed to access/create directory {folder_path}: {str(e_fs)}"}), 500
             
+        # Fetch all captures via Next.js API
+        res = fetch_from_scanner_api('/api/shipping-capture')
+        if not res.get('success'):
+            return jsonify({'error': f"Failed to fetch captures: {res.get('error')}"}), 500
+            
+        captures = {c['id']: c for c in res.get('captures', [])}
+        
         import time
         saved_count = 0
-        deleted_count = 0
         saved_file_paths = []
+        linked_ids = []
         
         for idx, img_id in enumerate(image_ids):
-            # Fetch from MongoDB
-            doc = collection.find_one({'_id': ObjectId(img_id)})
+            doc = captures.get(img_id)
             if not doc:
                 continue
                 
@@ -1252,13 +1223,17 @@ def link_shipping_images():
                 f.write(image_bytes)
             saved_count += 1
             saved_file_paths.append(file_path)
+            linked_ids.append(img_id)
             
-            # Delete from DB
-            collection.delete_one({'_id': ObjectId(img_id)})
-            deleted_count += 1
-            
-        client.close()
-        
+        # Call Next.js API to delete these linked images from MongoDB
+        if linked_ids:
+            del_res = fetch_from_scanner_api('/api/shipping-capture', method='POST', payload={
+                'action': 'delete',
+                'image_ids': linked_ids
+            })
+            if not del_res.get('success'):
+                print(f"Warning: Failed to delete linked captures from scanner app: {del_res.get('error')}")
+                
         # Construct and write Excel hyperlink formulas
         if saved_file_paths and row_id and os.path.exists(CURRENT_DB_PATH):
             formulas = []
@@ -1281,7 +1256,7 @@ def link_shipping_images():
             
         return jsonify({
             'success': True,
-            'message': f"Successfully linked {saved_count} images to shipping. Saved in {folder_path} and removed from database."
+            'message': f"Successfully linked {saved_count} images to shipping. Saved in {folder_path}."
         })
     except Exception as e:
         print(f"Error linking shipping images: {e}")
