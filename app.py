@@ -185,35 +185,38 @@ def parse_excel_database(file_path, sheet_name=None, header_row=1):
         print(f"Warning: Excel file not found at {file_path}")
         return records
         
+    wb = None
     try:
-        wb = openpyxl.load_workbook(file_path, data_only=True)
+        wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
         if not sheet_name or sheet_name not in wb.sheetnames:
             sheet = wb.active
         else:
             sheet = wb[sheet_name]
             
-        rows = list(sheet.iter_rows(values_only=True))
-        wb.close()
+        row_iterator = sheet.iter_rows(values_only=True)
         
-        if not rows:
-            return records
-            
         # Ensure header_row is within valid bounds
         h_idx = max(1, int(header_row))
-        if h_idx > len(rows):
-            print(f"Warning: header_row {h_idx} exceeds total rows {len(rows)}")
+        
+        headers = None
+        for _ in range(h_idx):
+            try:
+                headers = next(row_iterator)
+            except StopIteration:
+                break
+                
+        if not headers:
             return records
             
-        headers = rows[h_idx - 1]
         headers_clean = [str(h).strip().lower() if h is not None else "" for h in headers]
         boxes_idx = next((i for i, h in enumerate(headers_clean) if "boxes" in h or "no. of boxes" in h), -1)
         photo_idx = next((i for i, h in enumerate(headers_clean) if "photo" in h), -1)
         report_idx = next((i for i, h in enumerate(headers_clean) if "report" in h), -1)
         
-        data_rows = rows[h_idx:]
+        consecutive_empty_count = 0
         
         # Iterate data rows starting after the header
-        for idx, row_cells in enumerate(data_rows):
+        for idx, row_cells in enumerate(row_iterator):
             row = []
             for val in row_cells:
                 if val is None:
@@ -229,8 +232,13 @@ def parse_excel_database(file_path, sheet_name=None, header_row=1):
                     row.append(val_str)
                     
             if not row or all(cell.strip() == "" for cell in row):
-                continue # Skip empty rows
+                consecutive_empty_count += 1
+                if consecutive_empty_count >= 100:
+                    break
+                continue
                 
+            consecutive_empty_count = 0  # Reset counter for non-empty row
+            
             # Skip rows containing "cancelled" (case-insensitive)
             if any("cancelled" in cell.lower() for cell in row):
                 continue
@@ -286,7 +294,10 @@ def parse_excel_database(file_path, sheet_name=None, header_row=1):
                 
     except Exception as e:
         print(f"Error parsing Excel: {e}")
-        
+    finally:
+        if wb:
+            wb.close()
+            
     records.reverse()
     return records
 
@@ -631,7 +642,8 @@ def save_order():
             # Find the actual last content row
             max_r = sheet.max_row
             last_content_row = 1
-            for r in range(max_r, 0, -1):
+            consecutive_empty = 0
+            for r in range(1, max_r + 1):
                 has_content = False
                 for c in range(1, 35):
                     val = sheet.cell(row=r, column=c).value
@@ -640,8 +652,12 @@ def save_order():
                         break
                 if has_content:
                     last_content_row = r
-                    break
-                    
+                    consecutive_empty = 0
+                else:
+                    consecutive_empty += 1
+                    if consecutive_empty >= 100:
+                        break
+                        
             next_row = last_content_row + 1
             for col_idx, val in enumerate(row_data, 1):
                 sheet.cell(row=next_row, column=col_idx, value=cast_val(val))
