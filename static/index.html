@@ -210,6 +210,13 @@
 
                         <!-- Shipping Captures Button Only (re-positioned) -->
                         <div style="border-top: 1px dashed var(--card-border); padding-top: 18px; margin-top: 10px; margin-bottom: 20px;">
+                            <!-- Linked Images List -->
+                            <div id="linked-images-container" class="hidden" style="margin-bottom: 12px;">
+                                <label style="font-weight: 600; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 6px; display: block;">Linked Shipping Images</label>
+                                <div id="linked-images-list" style="display: flex; flex-direction: column; gap: 6px; background: var(--input-bg); border-radius: 8px; padding: 8px; border: 1px solid var(--input-border); max-height: 150px; overflow-y: auto;">
+                                    <!-- Linked image items will be added here dynamically -->
+                                </div>
+                            </div>
                             <button type="button" class="btn btn-secondary" id="btn-capture-images-popup" style="width: 100%;">
                                 <span class="btn-icon">📷</span> Capture a image
                             </button>

@@ -458,8 +458,11 @@ function loadDatabase() {
             
             // Deselect selected row if the records changed
             if (selectedRecord) {
-                const stillExists = records.some(r => r.row_id === selectedRecord.row_id);
-                if (!stillExists) {
+                const updatedRec = records.find(r => r.row_id === selectedRecord.row_id);
+                if (updatedRec) {
+                    selectedRecord = updatedRec;
+                    renderLinkedImages(selectedRecord);
+                } else {
                     selectedRecord = null;
                     emptyState.classList.remove('hidden');
                     editorContent.classList.add('hidden');
@@ -824,6 +827,7 @@ function selectRow(record, trElement) {
     // Reset toast and scroll editor card into view
     closeToast();
     loadGeneratedFiles(record); // Clear/Load file list for the new selection
+    renderLinkedImages(record); // Render linked shipping images
     updateCapturesPath();
     document.getElementById('editor-card').scrollIntoView({ behavior: 'smooth' });
 }
@@ -1174,6 +1178,65 @@ function openFileLocally(filepath) {
             if (!data.success) console.error("Could not open file:", data.error);
         })
         .catch(err => console.error("Error opening file:", err));
+}
+
+function renderLinkedImages(record) {
+    const container = document.getElementById('linked-images-container');
+    const list = document.getElementById('linked-images-list');
+    
+    if (!container || !list) return;
+    
+    list.innerHTML = '';
+    
+    if (record && record.captures && record.captures.length > 0) {
+        container.classList.remove('hidden');
+        record.captures.forEach(img => {
+            const item = document.createElement('div');
+            item.style.display = 'flex';
+            item.style.alignItems = 'center';
+            item.style.justifyContent = 'space-between';
+            item.style.padding = '4px 8px';
+            item.style.background = 'rgba(255, 255, 255, 0.05)';
+            item.style.borderRadius = '4px';
+            item.style.fontSize = '12px';
+            
+            // Name label (clickable to open)
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = `📷 ${img.name}`;
+            nameSpan.style.cursor = 'pointer';
+            nameSpan.style.textDecoration = 'underline';
+            nameSpan.style.flexGrow = '1';
+            nameSpan.style.marginRight = '8px';
+            nameSpan.style.whiteSpace = 'nowrap';
+            nameSpan.style.overflow = 'hidden';
+            nameSpan.style.textOverflow = 'ellipsis';
+            nameSpan.addEventListener('click', () => {
+                openFileLocally(img.path);
+            });
+            
+            // Open button
+            const openBtn = document.createElement('button');
+            openBtn.type = 'button';
+            openBtn.textContent = 'Open';
+            openBtn.style.padding = '2px 6px';
+            openBtn.style.fontSize = '10px';
+            openBtn.style.background = 'var(--primary-color)';
+            openBtn.style.border = 'none';
+            openBtn.style.borderRadius = '4px';
+            openBtn.style.color = '#fff';
+            openBtn.style.cursor = 'pointer';
+            openBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openFileLocally(img.path);
+            });
+            
+            item.appendChild(nameSpan);
+            item.appendChild(openBtn);
+            list.appendChild(item);
+        });
+    } else {
+        container.classList.add('hidden');
+    }
 }
 
 // Fetch generated documents list and render matching files for selected record
@@ -2278,6 +2341,7 @@ function linkImagesHandler() {
         if (data.success) {
             showToast("Linked Successfully", data.message, null, false);
             closeCapturesModalHandler();
+            loadDatabase();
         } else {
             showToast("Linking Error", data.error || "Failed to link images", null, true);
             if (btnLinkImages) {

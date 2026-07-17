@@ -101,6 +101,41 @@ def calculate_record_hash(rec):
     return hashlib.md5(content.encode('utf-8')).hexdigest()
 
 
+def parse_captures(val):
+    if not val:
+        return []
+    val_str = str(val).strip()
+    if not val_str:
+        return []
+        
+    import re
+    captures = []
+    
+    # If it is a HYPERLINK formula
+    if val_str.startswith('='):
+        matches = re.findall(r'HYPERLINK\(\s*["\']([^"\']+)["\']\s*,\s*["\']([^"\']+)["\']\s*\)', val_str, re.IGNORECASE)
+        for path, name in matches:
+            captures.append({
+                'path': path,
+                'name': name
+            })
+    else:
+        # If it's a comma-separated list of raw paths
+        parts = [p.strip() for p in val_str.split(',') if p.strip()]
+        for p in parts:
+            if p.startswith('file:///'):
+                path = p
+                name = os.path.basename(p.replace('file:///', ''))
+            else:
+                path = f"file:///{os.path.abspath(p)}" if not p.startswith('/') else f"file:///{p}"
+                name = os.path.basename(p)
+            captures.append({
+                'path': path,
+                'name': name
+            })
+    return captures
+
+
 def get_excel_row_record(sheet, row_idx, boxes_col_idx, photo_col_idx, report_col_idx):
     row = []
     for c in range(1, 35):
@@ -187,7 +222,7 @@ def parse_excel_database(file_path, sheet_name=None, header_row=1):
         
     wb = None
     try:
-        wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+        wb = openpyxl.load_workbook(file_path, read_only=True, data_only=False)
         if not sheet_name or sheet_name not in wb.sheetnames:
             sheet = wb.active
         else:
@@ -212,6 +247,7 @@ def parse_excel_database(file_path, sheet_name=None, header_row=1):
         boxes_idx = next((i for i, h in enumerate(headers_clean) if "boxes" in h or "no. of boxes" in h), -1)
         photo_idx = next((i for i, h in enumerate(headers_clean) if "photo" in h), -1)
         report_idx = next((i for i, h in enumerate(headers_clean) if "report" in h), -1)
+        captures_idx = next((i for i, h in enumerate(headers_clean) if "captures" in h), -1)
         
         consecutive_empty_count = 0
         
@@ -243,7 +279,7 @@ def parse_excel_database(file_path, sheet_name=None, header_row=1):
             if any("cancelled" in cell.lower() for cell in row):
                 continue
                 
-            max_len = max(34, boxes_idx + 1, photo_idx + 1, report_idx + 1)
+            max_len = max(34, boxes_idx + 1, photo_idx + 1, report_idx + 1, captures_idx + 1)
             if len(row) < max_len:
                 row = row + [""] * (max_len - len(row))
                 
@@ -286,6 +322,7 @@ def parse_excel_database(file_path, sheet_name=None, header_row=1):
                 'no_of_boxes': row[boxes_idx].strip() if boxes_idx != -1 else "",
                 'photo': row[photo_idx].strip() if photo_idx != -1 else "",
                 'report': row[report_idx].strip() if report_idx != -1 else "",
+                'captures': parse_captures(row[captures_idx]) if captures_idx != -1 else [],
             }
             record['row_hash'] = calculate_record_hash(record)
             
