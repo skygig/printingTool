@@ -1362,9 +1362,47 @@ def get_generated_files():
         return jsonify({'error': str(e)}), 500
 
 
+def clean_local_path(path_str):
+    if not path_str:
+        return ""
+        
+    import urllib.parse
+    import urllib.request
+    import sys
+    
+    unquoted = urllib.parse.unquote(path_str)
+    
+    if unquoted.lower().startswith("file:///"):
+        from urllib.parse import urlparse
+        parsed = urlparse(unquoted)
+        local_path = urllib.request.url2pathname(parsed.path)
+        if local_path.startswith('/') and len(local_path) > 2 and local_path[1].isalpha() and local_path[2] == ':':
+            local_path = local_path[1:]
+        elif local_path.startswith('\\') and len(local_path) > 2 and local_path[1].isalpha() and local_path[2] == ':':
+            local_path = local_path[1:]
+        return local_path
+    elif unquoted.lower().startswith("file://"):
+        path_str = unquoted[7:]
+    else:
+        path_str = unquoted
+        
+    if sys.platform == 'win32' or (os.name == 'nt'):
+        path_str = os.path.normpath(path_str)
+        if path_str.startswith('/') or path_str.startswith('\\'):
+            if len(path_str) > 2 and path_str[1].isalpha() and path_str[2] == ':':
+                path_str = path_str[1:]
+    else:
+        path_str = os.path.normpath(path_str)
+        
+    return path_str
+
+
 @app.route('/api/open-file')
 def open_file():
     filepath = request.args.get('path')
+    if filepath:
+        filepath = clean_local_path(filepath)
+        
     if not filepath or not os.path.exists(filepath):
         return jsonify({'error': 'File not found'}), 404
         
