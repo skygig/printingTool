@@ -753,18 +753,119 @@ function selectRow(record, trElement) {
                     <input type="text" class="item-amount" value="120.00">
                 </div>
             </div>
-            <div class="item-acceptance-row" style="margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--card-border); display: flex; align-items: center; gap: 8px;">
-                <input type="checkbox" class="item-accepted-checkbox" id="accept-item-${index}" style="width: auto; height: auto; cursor: pointer;">
-                <label for="accept-item-${index}" style="font-size: 12px; font-weight: 600; cursor: pointer; color: var(--text-primary); margin: 0;">Accepted</label>
+            <!-- Item Linked Captures List (Requirement 3: above Accepted row) -->
+            <div class="item-linked-images-container ${(item.captures && item.captures.length > 0) ? '' : 'hidden'}" style="margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--card-border);">
+                <label style="font-weight: 600; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; display: block;">Linked Images</label>
+                <div class="item-linked-images-list" style="display: flex; flex-direction: column; gap: 6px; background: var(--input-bg); border-radius: 8px; padding: 8px; border: 1px solid var(--input-border); max-height: 120px; overflow-y: auto;">
+                    <!-- Dynamic capture image links rendered here -->
+                </div>
+            </div>
+
+            <!-- Requirement 1: Capture Image button in item details section on same row as Accepted checkbox with space-between alignment -->
+            <div class="item-acceptance-row" style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--card-border); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" class="item-accepted-checkbox" id="accept-item-${index}" style="width: auto; height: auto; cursor: pointer;">
+                    <label for="accept-item-${index}" style="font-size: 12px; font-weight: 600; cursor: pointer; color: var(--text-primary); margin: 0;">Accepted</label>
+                </div>
+                <button type="button" class="btn btn-secondary btn-capture-item-image" style="padding: 4px 10px; font-size: 12px; width: auto;">
+                    <span class="btn-icon">📷</span> Capture a image
+                </button>
             </div>
         `;
         itemsContainer.appendChild(card);
+
+        // Render item captures list if available
+        const linkedList = card.querySelector('.item-linked-images-list');
+        if (linkedList && item.captures && item.captures.length > 0) {
+            item.captures.forEach(img => {
+                const imgItem = document.createElement('div');
+                imgItem.style.display = 'flex';
+                imgItem.style.alignItems = 'center';
+                imgItem.style.justifyContent = 'space-between';
+                imgItem.style.padding = '4px 8px';
+                imgItem.style.background = 'rgba(255, 255, 255, 0.05)';
+                imgItem.style.borderRadius = '4px';
+                imgItem.style.fontSize = '12px';
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = `📷 ${img.name}`;
+                nameSpan.style.cursor = 'pointer';
+                nameSpan.style.textDecoration = 'underline';
+                nameSpan.style.flexGrow = '1';
+                nameSpan.style.marginRight = '8px';
+                nameSpan.style.whiteSpace = 'nowrap';
+                nameSpan.style.overflow = 'hidden';
+                nameSpan.style.textOverflow = 'ellipsis';
+                nameSpan.addEventListener('click', () => {
+                    openFileLocally(img.path);
+                });
+                
+                const openBtn = document.createElement('button');
+                openBtn.type = 'button';
+                openBtn.textContent = 'Open';
+                openBtn.style.padding = '2px 6px';
+                openBtn.style.fontSize = '10px';
+                openBtn.style.background = 'var(--primary-color)';
+                openBtn.style.border = 'none';
+                openBtn.style.borderRadius = '4px';
+                openBtn.style.color = '#fff';
+                openBtn.style.cursor = 'pointer';
+                openBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openFileLocally(img.path);
+                });
+                
+                imgItem.appendChild(nameSpan);
+                imgItem.appendChild(openBtn);
+                linkedList.appendChild(imgItem);
+            });
+        }
+
+        // Bind Capture Image button listener for this specific item record
+        const btnCaptureItemImage = card.querySelector('.btn-capture-item-image');
+        if (btnCaptureItemImage) {
+            btnCaptureItemImage.addEventListener('click', () => {
+                openCapturesModalHandler(item);
+            });
+        }
 
         // Sync first item's line number with the global line number input
         const lineNumInput = card.querySelector('.item-line-num');
         if (index === 0 && inputLineNum) {
             lineNumInput.addEventListener('input', () => {
                 inputLineNum.value = lineNumInput.value;
+            });
+        }
+
+        // Accepted checkbox validation logic: ensure all input fields in item details have values
+        const acceptedCb = card.querySelector('.item-accepted-checkbox');
+        if (acceptedCb) {
+            acceptedCb.addEventListener('change', (e) => {
+                if (acceptedCb.checked) {
+                    const cardInputs = card.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"])');
+                    let blankFound = false;
+                    cardInputs.forEach(input => {
+                        if (!input.value || input.value.trim() === '') {
+                            blankFound = true;
+                        }
+                    });
+                    if (blankFound) {
+                        acceptedCb.checked = false;
+                        showToast("Incomplete Item Details", "Please fill in all input fields in item details before accepting.", null, true);
+                        alert("Please fill in all input fields in item details before checking Accepted.");
+                    }
+                }
+            });
+
+            // If an item detail input field becomes blank, reset Accepted status if checked
+            const cardInputs = card.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"])');
+            cardInputs.forEach(input => {
+                input.addEventListener('input', () => {
+                    if (acceptedCb.checked && (!input.value || input.value.trim() === '')) {
+                        acceptedCb.checked = false;
+                        showToast("Accepted Reset", "Item detail field is blank. Accepted status has been unchecked.", null, true);
+                    }
+                });
             });
         }
     });
@@ -796,8 +897,21 @@ function selectRow(record, trElement) {
         inputOutboundH.value = '5';
     }
     
-    // Pre-fill Carrier
-    inputCarrier.value = record.outbound_carrier || '';
+    // Pre-fill Carrier (Dropdown)
+    if (inputCarrier) {
+        const rawCarrier = (record.outbound_carrier || '').trim();
+        if (rawCarrier) {
+            const options = Array.from(inputCarrier.options).map(o => o.value);
+            const matchedOption = options.find(opt => opt.toLowerCase() === rawCarrier.toLowerCase());
+            if (matchedOption) {
+                inputCarrier.value = matchedOption;
+            } else {
+                inputCarrier.value = 'Others';
+            }
+        } else {
+            inputCarrier.value = '';
+        }
+    }
     if (inputOutboundTracking) {
         inputOutboundTracking.value = record.outbound_tracking || '';
     }
@@ -2160,12 +2274,14 @@ function handleReceivingSave(e) {
 }
 
 let selectedCaptureIds = new Set();
+let currentCaptureItem = null;
 
-function openCapturesModalHandler() {
-    if (!selectedRecord) {
+function openCapturesModalHandler(item = null) {
+    if (!item && !selectedRecord) {
         showToast("Error", "No record selected.", null, true);
         return;
     }
+    currentCaptureItem = item || selectedRecord;
     
     selectedCaptureIds.clear();
     if (btnLinkImages) {
@@ -2174,6 +2290,7 @@ function openCapturesModalHandler() {
     if (capturesModal) {
         capturesModal.classList.remove('hidden');
     }
+    updateCapturesPath();
     loadCaptures();
 }
 
@@ -2254,12 +2371,18 @@ function loadCaptures() {
 let customBaseDirectory = "";
 
 function updateCapturesPath() {
-    if (!selectedRecord) return;
-    const customerName = (selectedRecord.customer || '').trim();
-    const customerPo = inputCustomerPo.value.trim();
-    const cleanCustomer = customerName.replace(/[^a-zA-Z0-9\s-_]/g, '');
-    const cleanPo = customerPo.replace(/[^a-zA-Z0-9\s-_]/g, '');
-    const folderName = `${cleanCustomer}_${cleanPo}`;
+    const rec = currentCaptureItem || selectedRecord;
+    if (!rec) return;
+    
+    const customerName = (rec.customer || (selectedRecord ? selectedRecord.customer : '') || '').trim();
+    const customerPo = (inputCustomerPo ? inputCustomerPo.value.trim() : '') || (rec.customer_po || '').trim();
+    const rmsPo = (rec.rms_po || '').trim();
+
+    const cleanCustomer = customerName.replace(/[^a-zA-Z0-9\s-_]/g, '').trim() || 'Customer';
+    const cleanPo = customerPo.replace(/[^a-zA-Z0-9\s-_]/g, '').trim() || 'PO';
+    const cleanRms = rmsPo.replace(/[^a-zA-Z0-9\s-_]/g, '').trim() || 'RMS';
+
+    const folderName = `${cleanCustomer}_${cleanPo}_${cleanRms}`;
     
     const baseDir = customBaseDirectory || "Z:/shipping_captures";
     const finalPath = `${baseDir}/${folderName}`;
@@ -2306,7 +2429,8 @@ function handleBrowseCapturesFolder() {
 }
 
 function linkImagesHandler() {
-    if (!selectedRecord) return;
+    const rec = currentCaptureItem || selectedRecord;
+    if (!rec) return;
     if (selectedCaptureIds.size === 0) return;
     
     const folderPath = (shippingCapturesPath ? shippingCapturesPath.value : '').trim();
@@ -2328,8 +2452,9 @@ function linkImagesHandler() {
         body: JSON.stringify({
             image_ids: Array.from(selectedCaptureIds),
             folder_path: folderPath,
-            row_id: selectedRecord.row_id,
-            customer_po: inputCustomerPo.value.trim()
+            row_id: rec.row_id,
+            customer_po: (inputCustomerPo ? inputCustomerPo.value.trim() : '') || rec.customer_po || '',
+            rms_po: rec.rms_po || ''
         })
     })
     .then(res => res.json())

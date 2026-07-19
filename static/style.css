@@ -327,7 +327,7 @@ tbody tr.selected td {
 .editor-content {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 0.5rem;
 }
 
 .editor-header {
@@ -353,7 +353,7 @@ tbody tr.selected td {
     text-transform: uppercase;
     letter-spacing: 1.5px;
     color: var(--primary-color);
-    margin: 10px 0 5px 0;
+    margin: 20px 0 10px 0;
     border-left: 2px solid var(--primary-color);
     padding-left: 8px;
 }
@@ -380,7 +380,7 @@ label {
     color: var(--text-secondary);
 }
 
-input, textarea {
+input, select, textarea {
     width: 100%;
     background: var(--input-bg);
     border: 1px solid var(--input-border);
@@ -393,9 +393,19 @@ input, textarea {
     transition: var(--transition-smooth);
 }
 
-input:focus, textarea:focus {
+input:focus, select:focus, textarea:focus {
     border-color: var(--secondary-color);
     box-shadow: 0 0 8px rgba(99, 102, 241, 0.2);
+}
+
+select option {
+    background-color: #1e293b;
+    color: #f8fafc;
+}
+
+body.light-theme select option {
+    background-color: #ffffff;
+    color: #0f172a;
 }
 
 .input-readonly {

@@ -1230,6 +1230,7 @@ def link_shipping_images():
     folder_path = data['folder_path'].strip()
     row_id = data.get('row_id')
     customer_po = data.get('customer_po', '').strip() or "capture"
+    rms_po = data.get('rms_po', '').strip()
     
     if not image_ids:
         return jsonify({'error': 'No images selected'}), 400
@@ -1290,19 +1291,26 @@ def link_shipping_images():
         # Construct and write Excel hyperlink formulas
         if saved_file_paths and row_id and os.path.exists(CURRENT_DB_PATH):
             formulas = []
+            label_prefix = f"{customer_po}_{rms_po}" if rms_po else customer_po
             for i, fp in enumerate(saved_file_paths):
                 win_path = os.path.normpath(fp).replace('/', '\\')
                 file_url = f"file:///{win_path}"
-                friendly_name = f"{customer_po}.jpg" if len(saved_file_paths) == 1 else f"{customer_po}_{i + 1}.jpg"
+                friendly_name = f"{label_prefix}.jpg" if len(saved_file_paths) == 1 else f"{label_prefix}_{i + 1}.jpg"
                 formulas.append(f'HYPERLINK("{file_url}", "{friendly_name}")')
                 
-            formula_val = "=" + " & \", \" & ".join(formulas)
-            
             wb = openpyxl.load_workbook(CURRENT_DB_PATH)
             sheet = wb[CURRENT_SHEET] if CURRENT_SHEET in wb.sheetnames else wb.active
             
             captures_col = ensure_captures_header_excel(sheet, CURRENT_HEADER_ROW)
-            sheet.cell(row=int(row_id), column=captures_col, value=formula_val)
+            cell = sheet.cell(row=int(row_id), column=captures_col)
+            existing_val = cell.value
+            
+            if existing_val and isinstance(existing_val, str) and existing_val.strip().startswith('='):
+                combined_val = existing_val.strip() + " & \", \" & " + " & \", \" & ".join(formulas)
+            else:
+                combined_val = "=" + " & \", \" & ".join(formulas)
+                
+            cell.value = combined_val
             
             wb.save(CURRENT_DB_PATH)
             wb.close()

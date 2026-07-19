@@ -156,12 +156,7 @@
                     </div>
 
                     <form id="generator-form" class="editor-form">
-                        <div class="form-section-title">Item Details</div>
-                        <div id="items-container">
-                            <!-- Dynamic item edit cards will be generated here -->
-                        </div>
-
-                        <div class="form-section-title">Shipping & Order Metadata</div>
+                        <div class="form-section-title">Shipping Details</div>
                         <div class="form-grid">
                             <div class="form-group">
                                 <label for="customer_po">Customer P.O. / S.O. #</label>
@@ -199,7 +194,14 @@
 
                             <div class="form-group">
                                 <label for="outbound_carrier">Carrier</label>
-                                <input type="text" id="outbound_carrier" placeholder="e.g. FedEx / UPS">
+                                <select id="outbound_carrier">
+                                    <option value="">Select Carrier</option>
+                                    <option value="FedEx">FedEx</option>
+                                    <option value="DHL">DHL</option>
+                                    <option value="UPS">UPS</option>
+                                    <option value="Shippo">Shippo</option>
+                                    <option value="Others">Others</option>
+                                </select>
                             </div>
 
                             <div class="form-group">
@@ -208,18 +210,9 @@
                             </div>
                         </div>
 
-                        <!-- Shipping Captures Button Only (re-positioned) -->
-                        <div style="border-top: 1px dashed var(--card-border); padding-top: 18px; margin-top: 10px; margin-bottom: 20px;">
-                            <!-- Linked Images List -->
-                            <div id="linked-images-container" class="hidden" style="margin-bottom: 12px;">
-                                <label style="font-weight: 600; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 6px; display: block;">Linked Shipping Images</label>
-                                <div id="linked-images-list" style="display: flex; flex-direction: column; gap: 6px; background: var(--input-bg); border-radius: 8px; padding: 8px; border: 1px solid var(--input-border); max-height: 150px; overflow-y: auto;">
-                                    <!-- Linked image items will be added here dynamically -->
-                                </div>
-                            </div>
-                            <button type="button" class="btn btn-secondary" id="btn-capture-images-popup" style="width: 100%;">
-                                <span class="btn-icon">📷</span> Capture a image
-                            </button>
+                        <div class="form-section-title">Item Details</div>
+                        <div id="items-container">
+                            <!-- Dynamic item edit cards will be generated here -->
                         </div>
 
                         <div class="form-section-title">Addresses</div>
