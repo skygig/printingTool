@@ -236,12 +236,14 @@ window.addEventListener('DOMContentLoaded', () => {
     btnPickFile.addEventListener('click', triggerFilePicker);
     dbFileInput.addEventListener('change', handleFileUpload);
     sheetSelect.addEventListener('change', handleSheetChange);
-    headerRowInput.addEventListener('change', handleHeaderRowChange);
-    headerRowInput.addEventListener('keyup', (e) => {
-        if (e.key === 'Enter') {
-            handleHeaderRowChange(e);
-        }
-    });
+    if (headerRowInput) {
+        headerRowInput.addEventListener('change', handleHeaderRowChange);
+        headerRowInput.addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') {
+                handleHeaderRowChange(e);
+            }
+        });
+    }
 
     if (receivingBtnPickFile) receivingBtnPickFile.addEventListener('click', triggerFilePicker);
     if (receivingDbFileInput) receivingDbFileInput.addEventListener('change', handleFileUpload);
@@ -531,19 +533,19 @@ function loadDatabase() {
                         receivingSheetSelect.appendChild(opt2);
                     }
                 });
-                headerRowInput.value = status.header_row || 1;
+                if (headerRowInput) headerRowInput.value = status.header_row || 1;
                 if (receivingHeaderRowInput) receivingHeaderRowInput.value = status.header_row || 1;
                 
-                excelActionsRow.classList.remove('hidden');
+                if (excelActionsRow) excelActionsRow.classList.remove('hidden');
                 if (receivingExcelActionsRow) receivingExcelActionsRow.classList.remove('hidden');
             } else {
-                excelActionsRow.classList.add('hidden');
+                if (excelActionsRow) excelActionsRow.classList.add('hidden');
                 if (receivingExcelActionsRow) receivingExcelActionsRow.classList.add('hidden');
                 
                 sheetSelect.innerHTML = '<option value="">Select Sheet...</option>';
                 if (receivingSheetSelect) receivingSheetSelect.innerHTML = '<option value="">Select Sheet...</option>';
                 
-                headerRowInput.value = 1;
+                if (headerRowInput) headerRowInput.value = 1;
                 if (receivingHeaderRowInput) receivingHeaderRowInput.value = 1;
             }
             
@@ -1627,19 +1629,19 @@ function handleFileUpload(e) {
                         receivingSheetSelect.appendChild(opt2);
                     }
                 });
-                headerRowInput.value = data.header_row || 1;
+                if (headerRowInput) headerRowInput.value = data.header_row || 1;
                 if (receivingHeaderRowInput) receivingHeaderRowInput.value = data.header_row || 1;
                 
-                excelActionsRow.classList.remove('hidden');
+                if (excelActionsRow) excelActionsRow.classList.remove('hidden');
                 if (receivingExcelActionsRow) receivingExcelActionsRow.classList.remove('hidden');
             } else {
-                excelActionsRow.classList.add('hidden');
+                if (excelActionsRow) excelActionsRow.classList.add('hidden');
                 if (receivingExcelActionsRow) receivingExcelActionsRow.classList.add('hidden');
                 
                 sheetSelect.innerHTML = '<option value="">Select Sheet...</option>';
                 if (receivingSheetSelect) receivingSheetSelect.innerHTML = '<option value="">Select Sheet...</option>';
                 
-                headerRowInput.value = 1;
+                if (headerRowInput) headerRowInput.value = 1;
                 if (receivingHeaderRowInput) receivingHeaderRowInput.value = 1;
             }
             
@@ -1688,9 +1690,9 @@ function handleSheetChange(e) {
     recordsCount.textContent = "Loading sheet...";
     
     // Read header row value from whichever input is active
-    const headerRowVal = (e.target === receivingSheetSelect) ? 
+    const headerRowVal = (receivingHeaderRowInput && e.target === receivingHeaderRowInput) ? 
         (receivingHeaderRowInput.value || 1) : 
-        (headerRowInput.value || 1);
+        (headerRowInput ? (headerRowInput.value || 1) : 1);
     
     fetch('/api/load-sheet', {
         method: 'POST',

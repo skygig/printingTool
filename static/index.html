@@ -16,9 +16,9 @@
             document.body.classList.add('light-theme');
         }
     </script>
-    <div class="app-container">
-        <!-- Sidebar / Header -->
-        <header class="app-header">
+    <!-- Main Sticky Full-Width Header -->
+    <header class="app-header-sticky">
+        <div class="app-header-inner">
             <div class="logo-area">
                 <span class="logo-icon">📦</span>
                 <h1>RMS Warehouse</h1>
@@ -39,19 +39,45 @@
                     Logout
                 </button>
             </div>
-        </header>
+        </div>
+    </header>
 
-        <!-- Page Switcher Tabs -->
-        <div class="page-tabs-container">
-            <button id="tab-dashboard" class="page-tab active">
-                <span class="tab-icon">🚢</span> Shipping
-            </button>
-            <button id="tab-receiving" class="page-tab">
-                <span class="tab-icon">📥</span> Receiving
-            </button>
-            <button id="tab-order-entry" class="page-tab">
-                <span class="tab-icon">➕</span> Order Entry
-            </button>
+    <div class="app-container">
+        <!-- Global Top Row: File Picker Component Card + Section Switcher Tabs -->
+        <div class="global-top-row" style="display: flex; align-items: stretch; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;">
+            <!-- 1. File Picker Component Card (First) -->
+            <div class="global-db-card card" style="flex: 1; min-width: 320px; padding: 12px 20px; margin: 0; display: flex; align-items: center; border-radius: 14px;">
+                <div class="db-control-bar" style="width: 100%; margin: 0; padding: 0; background: transparent; border: none; box-shadow: none;">
+                    <div class="db-main-row" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+                        <div class="db-info" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            <span class="db-icon">📊</span>
+                            <span id="db-filename" class="db-filename" style="font-weight: 600;">Loading database file...</span>
+                            <select id="sheet-select" class="sheet-select" style="margin-left: 1rem; width: auto;">
+                                <option value="">Select Sheet...</option>
+                            </select>
+                        </div>
+                        <div class="db-actions">
+                            <button id="btn-pick-file" class="btn btn-secondary btn-sm" type="button">
+                                📁 Pick File
+                            </button>
+                            <input type="file" id="db-file-input" accept=".xlsx,.xls" style="display: none;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Section Switcher Tabs Options (Same Height & Border Radius as File Picker Card) -->
+            <div class="page-tabs-container" style="margin: 0; display: flex; align-items: stretch; gap: 8px; flex-shrink: 0;">
+                <button id="tab-dashboard" class="page-tab active" style="height: 100%; border-radius: 14px; display: inline-flex; align-items: center;">
+                    <span class="tab-icon">🚢</span> Shipping
+                </button>
+                <button id="tab-receiving" class="page-tab" style="height: 100%; border-radius: 14px; display: inline-flex; align-items: center;">
+                    <span class="tab-icon">📥</span> Receiving
+                </button>
+                <button id="tab-order-entry" class="page-tab" style="height: 100%; border-radius: 14px; display: inline-flex; align-items: center;">
+                    <span class="tab-icon">➕</span> Order Entry
+                </button>
+            </div>
         </div>
 
         <!-- Main Dashboard Layout -->
@@ -65,35 +91,6 @@
                     <div class="search-box">
                         <span class="search-icon">🔍</span>
                         <input type="text" id="search-input" placeholder="Search by PO, RMS P.O, Part, Customer, Date...">
-                    </div>
-                </div>
-
-                <!-- Active Database Control Bar -->
-                <div class="db-control-bar">
-                    <div class="db-main-row">
-                        <div class="db-info">
-                            <span class="db-icon">📊</span>
-                            <span id="db-filename" class="db-filename">Loading database file...</span>
-                        </div>
-                        <div class="db-actions">
-                            <button id="btn-pick-file" class="btn btn-secondary btn-sm" type="button">
-                                📁 Pick File
-                            </button>
-                            <input type="file" id="db-file-input" accept=".xlsx,.xls" style="display: none;">
-                        </div>
-                    </div>
-                    <!-- Excel-specific controls: Sheet picker and Header row input -->
-                    <div id="excel-actions-row" class="excel-actions-row hidden">
-                        <div class="excel-action-item">
-                            <span class="control-label">📋 Sheet:</span>
-                            <select id="sheet-select" class="sheet-select">
-                                <option value="">Select Sheet...</option>
-                            </select>
-                        </div>
-                        <div class="excel-action-item">
-                            <span class="control-label">🔝 Header Row:</span>
-                            <input type="number" id="header-row-input" class="header-row-input" min="1" value="1">
-                        </div>
                     </div>
                 </div>
 
@@ -119,7 +116,7 @@
                 <!-- Pagination -->
                 <div class="pagination">
                     <button id="prev-page" class="btn btn-secondary" disabled>← Previous</button>
-                    <span id="page-indicator">Page 1 of 1</span>
+                    <span id="page-indicator" class="page-indicator">Page 1 of 1</span>
                     <button id="next-page" class="btn btn-secondary" disabled>Next →</button>
                 </div>
             </section>
@@ -281,16 +278,6 @@
                         </div>
                     </div>
 
-                    <!-- Database Control Info -->
-                    <div class="db-control-bar">
-                        <div class="db-main-row">
-                            <div class="db-info">
-                                <span class="db-icon">📊</span>
-                                <span id="receiving-db-filename" class="db-filename">Loading database file...</span>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Table Container -->
                     <div class="table-container">
                         <table id="receiving-records-table">
@@ -311,12 +298,10 @@
                     </div>
 
                     <!-- Pagination -->
-                    <div class="pagination-receive-bar" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 10px; flex-wrap: wrap;">
-                        <div class="pagination" style="margin: 0;">
-                            <button type="button" id="receiving-prev-page" class="btn btn-secondary" disabled>← Previous</button>
-                            <span id="receiving-page-indicator">Page 1 of 1</span>
-                            <button type="button" id="receiving-next-page" class="btn btn-secondary" disabled>Next →</button>
-                        </div>
+                    <div class="pagination">
+                        <button type="button" id="receiving-prev-page" class="btn btn-secondary" disabled>← Previous</button>
+                        <span id="receiving-page-indicator" class="page-indicator">Page 1 of 1</span>
+                        <button type="button" id="receiving-next-page" class="btn btn-secondary" disabled>Next →</button>
                     </div>
                 </section>
             </div>
