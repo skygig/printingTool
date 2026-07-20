@@ -1552,4 +1552,35 @@ body:not(.light-theme) .scan-dropdown-item:hover {
     gap: 4px;
 }
 
+/* Email Tag Styling */
+.email-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(99, 102, 241, 0.15);
+    color: var(--text-primary);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    padding: 3px 10px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.email-tag-remove {
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 1;
+    color: var(--text-secondary);
+    opacity: 0.7;
+    margin-left: 2px;
+    transition: color 0.2s, opacity 0.2s;
+}
+
+.email-tag-remove:hover {
+    color: #ef4444;
+    opacity: 1;
+}
+
 

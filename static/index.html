@@ -242,8 +242,9 @@
 
                             <div class="form-group span-2">
                                 <label for="customer_email">Customer Email</label>
+                                <div id="customer-email-tags" class="email-tags-container hidden" style="flex-wrap: wrap; gap: 6px;"></div>
                                 <div style="display: flex; gap: 10px; align-items: center;">
-                                    <input type="email" id="customer_email" placeholder="customer@example.com" style="flex-grow: 1; margin: 0;">
+                                    <input type="text" id="customer_email" placeholder="Type email and press comma (,) or space..." style="flex-grow: 1; margin: 0;">
                                     <button type="button" class="btn btn-secondary" id="btn-send-email" style="width: auto; padding: 10px 20px; white-space: nowrap; margin: 0; height: 38px; display: flex; align-items: center; justify-content: center; gap: 6px;">
                                         <span class="btn-icon" style="margin: 0;">📧</span> Send Email
                                     </button>

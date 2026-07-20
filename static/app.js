@@ -105,6 +105,80 @@ const txtShipTo = document.getElementById('ship_to_address');
 const inputFreeReplacement = document.getElementById('free_replacement_note');
 const txtNotesList = document.getElementById('notes_list');
 const inputCustomerEmail = document.getElementById('customer_email');
+const customerEmailTagsContainer = document.getElementById('customer-email-tags');
+let customerEmails = [];
+
+function renderEmailTags() {
+    if (!customerEmailTagsContainer) return;
+    customerEmailTagsContainer.innerHTML = '';
+    
+    if (customerEmails.length === 0) {
+        customerEmailTagsContainer.classList.add('hidden');
+        customerEmailTagsContainer.style.display = 'none';
+        customerEmailTagsContainer.style.marginBottom = '0px';
+        return;
+    }
+    
+    customerEmailTagsContainer.classList.remove('hidden');
+    customerEmailTagsContainer.style.display = 'flex';
+    customerEmailTagsContainer.style.marginBottom = '6px';
+    
+    customerEmails.forEach((email, idx) => {
+        const tag = document.createElement('span');
+        tag.className = 'email-tag';
+        
+        const textSpan = document.createElement('span');
+        textSpan.textContent = email;
+        
+        const removeBtn = document.createElement('span');
+        removeBtn.className = 'email-tag-remove';
+        removeBtn.innerHTML = '&times;';
+        removeBtn.title = 'Remove email';
+        removeBtn.addEventListener('click', () => {
+            removeCustomerEmail(idx);
+        });
+        
+        tag.appendChild(textSpan);
+        tag.appendChild(removeBtn);
+        customerEmailTagsContainer.appendChild(tag);
+    });
+}
+
+function addCustomerEmail(emailStr) {
+    if (!emailStr) return;
+    const parts = emailStr.split(/[\s,]+/);
+    let added = false;
+    let invalidEmails = [];
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    
+    parts.forEach(part => {
+        const clean = part.replace(/^[,;\s]+|[,;\s]+$/g, '').trim();
+        if (clean) {
+            if (emailRegex.test(clean)) {
+                if (!customerEmails.includes(clean)) {
+                    customerEmails.push(clean);
+                    added = true;
+                }
+            } else {
+                invalidEmails.push(clean);
+            }
+        }
+    });
+    
+    renderEmailTags();
+    
+    if (invalidEmails.length > 0) {
+        showToast("Invalid Email", `'${invalidEmails.join(', ')}' is not a valid email address.`, null, true);
+    }
+}
+
+function removeCustomerEmail(index) {
+    if (index >= 0 && index < customerEmails.length) {
+        customerEmails.splice(index, 1);
+        renderEmailTags();
+    }
+}
+
 const btnSendEmail = document.getElementById('btn-send-email');
 const btnCaptureImagesPopup = document.getElementById('btn-capture-images-popup');
 const capturesModal = document.getElementById('captures-modal');
@@ -133,6 +207,31 @@ window.addEventListener('DOMContentLoaded', () => {
     if (btnBrowseCapturesFolder) btnBrowseCapturesFolder.addEventListener('click', handleBrowseCapturesFolder);
     if (inputCustomerPo) inputCustomerPo.addEventListener('input', updateCapturesPath);
     btnShowInFolder.addEventListener('click', openOutputsFolder);
+
+    if (inputCustomerEmail) {
+        inputCustomerEmail.addEventListener('keydown', (e) => {
+            if (e.key === ',' || e.key === 'Enter' || (e.key === ' ' && inputCustomerEmail.value.trim().length > 0)) {
+                e.preventDefault();
+                addCustomerEmail(inputCustomerEmail.value);
+                inputCustomerEmail.value = '';
+            }
+        });
+
+        inputCustomerEmail.addEventListener('input', () => {
+            const val = inputCustomerEmail.value;
+            if (val.includes(',')) {
+                addCustomerEmail(val);
+                inputCustomerEmail.value = '';
+            }
+        });
+
+        inputCustomerEmail.addEventListener('blur', () => {
+            if (inputCustomerEmail.value.trim().length > 0) {
+                addCustomerEmail(inputCustomerEmail.value);
+                inputCustomerEmail.value = '';
+            }
+        });
+    }
     
     btnPickFile.addEventListener('click', triggerFilePicker);
     dbFileInput.addEventListener('change', handleFileUpload);
@@ -916,14 +1015,22 @@ function selectRow(record, trElement) {
         inputOutboundTracking.value = record.outbound_tracking || '';
     }
 
-    if (inputCustomerEmail) {
-        const contact = (record.customer_contact || '').trim();
-        if (contact.includes('@')) {
-            inputCustomerEmail.value = contact;
-        } else {
-            inputCustomerEmail.value = '';
+    customerEmails = [];
+    if (record && record.customer_contact) {
+        const contact = record.customer_contact.toString().trim();
+        const emailMatches = contact.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g);
+        if (emailMatches) {
+            const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            emailMatches.forEach(email => {
+                const clean = email.trim();
+                if (clean && emailRegex.test(clean) && !customerEmails.includes(clean)) {
+                    customerEmails.push(clean);
+                }
+            });
         }
     }
+    if (inputCustomerEmail) inputCustomerEmail.value = '';
+    renderEmailTags();
     
     // Set Addresses
     txtSoldTo.value = ADDRESSES[customerType].sold_to;
@@ -1160,17 +1267,15 @@ function handleSendEmail(e) {
         return;
     }
     
-    const emailVal = inputCustomerEmail.value.trim();
-    if (!emailVal) {
-        showToast("Validation Error", "Please enter a customer email address.", null, true);
-        inputCustomerEmail.focus();
-        return;
+    // Auto-add any pending text typed in input Customer Email box
+    if (inputCustomerEmail && inputCustomerEmail.value.trim().length > 0) {
+        addCustomerEmail(inputCustomerEmail.value);
+        inputCustomerEmail.value = '';
     }
     
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(emailVal)) {
-        showToast("Validation Error", "Please enter a valid email address.", null, true);
-        inputCustomerEmail.focus();
+    if (customerEmails.length === 0) {
+        showToast("Validation Error", "Please enter at least one customer email address.", null, true);
+        if (inputCustomerEmail) inputCustomerEmail.focus();
         return;
     }
     
@@ -1217,7 +1322,8 @@ function handleSendEmail(e) {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            customer_email: emailVal,
+            customer_emails: customerEmails,
+            customer_email: customerEmails.join(', '),
             record: recordPayload
         })
     })

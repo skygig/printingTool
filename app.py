@@ -983,15 +983,22 @@ def update_records():
 @app.route('/api/send-email', methods=['POST'])
 def send_email_route():
     data = request.json
-    if not data or 'customer_email' not in data or 'record' not in data:
-        return jsonify({'error': 'Missing customer_email or record data'}), 400
+    if not data or 'record' not in data:
+        return jsonify({'error': 'Missing record data'}), 400
         
-    customer_email = data['customer_email'].strip()
+    raw_emails = data.get('customer_emails') or data.get('customer_email')
+    customer_emails = []
+    if isinstance(raw_emails, str):
+        customer_emails = [e.strip() for e in raw_emails.split(',') if e.strip()]
+    elif isinstance(raw_emails, list):
+        customer_emails = [str(e).strip() for e in raw_emails if str(e).strip()]
+        
+    if not customer_emails:
+        return jsonify({'error': 'Customer email list cannot be empty'}), 400
+        
     record = data['record']
+    customer_email_to = ", ".join(customer_emails)
     
-    if not customer_email:
-        return jsonify({'error': 'Customer email cannot be empty'}), 400
-        
     # Construct email details
     customer_po = record.get('customer_po', '').strip() or "N/A"
     rms_po = record.get('rms_po', '').strip() or "N/A"
@@ -1097,11 +1104,11 @@ def send_email_route():
         "Content-Type": "application/x-www-form-urlencoded"
     }
     
-    # 1. Send to Customer
+    # 1. Send to Customer(s)
     customer_subject = f"Shipment Notification - RMS P.O. #{rms_po} / Customer P.O. #{customer_po}"
     post_data_customer = {
         "from": f"Mailgun Sandbox <postmaster@{domain}>",
-        "to": customer_email,
+        "to": customer_email_to,
         "subject": customer_subject,
         "text": body,
         "html": html_body
