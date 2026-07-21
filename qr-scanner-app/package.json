@@ -9,14 +9,18 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ericblade/quagga2": "^1.12.1",
     "@zxing/library": "^0.23.0",
+    "canvas": "^3.2.3",
+    "html5-qrcode": "^2.3.8",
     "js-cookie": "^3.0.8",
     "mongodb": "^7.4.0",
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-qr-barcode-scanner": "^2.1.25",
-    "react-webcam": "^7.2.0"
+    "react-webcam": "^7.2.0",
+    "zxing-wasm": "^3.1.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

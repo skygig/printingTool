@@ -9,7 +9,7 @@ import dynamic from 'next/dynamic';
 const ScannerWrapper = dynamic(() => import('@/components/ScannerWrapper'), {
   ssr: false,
   loading: () => (
-    <div className="w-full aspect-video md:aspect-square max-w-md mx-auto rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center">
+    <div className="w-full aspect-square max-w-md mx-auto rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center">
       <div className="text-slate-400 text-sm flex flex-col items-center gap-2">
         <svg className="animate-spin h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
