@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { readBarcodesFromImageData } from 'zxing-wasm/reader';
 
 interface ScannerWrapperProps {
   onScan: (value: string) => void;
@@ -312,6 +313,49 @@ export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps)
     }
   };
 
+  const decodeCroppedCanvas = async (canvas: HTMLCanvasElement): Promise<string | null> => {
+    try {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      // Pass 1: WASM Barcode Decoder (Ultra high precision for Code 128 / UPS / FedEx / QR)
+      try {
+        const results = await readBarcodesFromImageData(imageData, {
+          tryHarder: true,
+          tryRotate: true,
+          formats: ['Code128', 'Code39', 'Code93', 'QRCode', 'DataMatrix', 'ITF', 'EAN13', 'EAN8', 'UPCA', 'UPCE']
+        });
+        if (results && results.length > 0 && results[0].text) {
+          return results[0].text.trim();
+        }
+      } catch (e) {
+        console.log('zxing-wasm scan pass error:', e);
+      }
+
+      // Pass 2: html5-qrcode scanFile fallback
+      try {
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        const croppedFile = new File([blob], 'cropped.jpg', { type: 'image/jpeg' });
+        
+        let html5Qrcode = html5QrcodeRef.current || new Html5Qrcode(containerId, { verbose: false });
+        const text = await html5Qrcode.scanFile(croppedFile, true);
+        if (text) {
+          return text.trim();
+        }
+      } catch (e) {
+        console.log('html5-qrcode scan pass error:', e);
+      }
+
+      return null;
+    } catch (err) {
+      console.error('decodeCroppedCanvas error:', err);
+      return null;
+    }
+  };
+
   const executeCropAndScan = async () => {
     if (!cropModalImage || !cropImageRef.current) return;
 
@@ -343,41 +387,13 @@ export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps)
 
     setScannerStatus('Decoding cropped barcode photo...');
 
-    // Convert to File for scanning
-    try {
-      const res = await fetch(croppedDataUrl);
-      const blob = await res.blob();
-      const croppedFile = new File([blob], 'cropped_barcode.jpg', { type: 'image/jpeg' });
-
-      let html5Qrcode = html5QrcodeRef.current;
-      if (!html5Qrcode) {
-        html5Qrcode = new Html5Qrcode(containerId, {
-          formatsToSupport: [
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.CODE_93,
-            Html5QrcodeSupportedFormats.QR_CODE,
-            Html5QrcodeSupportedFormats.DATA_MATRIX,
-            Html5QrcodeSupportedFormats.PDF_417,
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.ITF,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E,
-          ],
-          verbose: false,
-        });
-      }
-
-      const decodedText = await html5Qrcode.scanFile(croppedFile, true);
-      if (decodedText && isValidBarcodeValue(decodedText)) {
-        handleDetectedValue(decodedText);
-        setScannerStatus(`Scanned photo result: ${decodedText}`);
-      } else {
-        setScannerStatus('Barcode photo previewed. (Could not auto-decode — ensure code is sharp)');
-      }
-    } catch (err: any) {
-      console.error('Cropped file scan error:', err);
-      setScannerStatus('Photo preview loaded in viewport.');
+    // Decode cropped area using multi-pass WASM decoder
+    const decodedValue = await decodeCroppedCanvas(canvas);
+    if (decodedValue && isValidBarcodeValue(decodedValue)) {
+      handleDetectedValue(decodedValue);
+      setScannerStatus(`Scanned Code: ${decodedValue}`);
+    } else {
+      setScannerStatus('Photo preview loaded. (Could not auto-decode — ensure code is sharp)');
     }
   };
 
@@ -592,7 +608,7 @@ export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps)
               onClick={executeCropAndScan}
               className="flex-1 py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition-all shadow-lg shadow-blue-500/25 cursor-pointer flex items-center justify-center gap-1.5"
             >
-              <span>✂️</span> Crop & Preview in Camera
+              <span>✂️</span> Scan Code
             </button>
           </div>
         </div>
