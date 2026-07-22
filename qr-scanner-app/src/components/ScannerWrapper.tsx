@@ -4,16 +4,24 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { readBarcodesFromImageData } from 'zxing-wasm/reader';
 
+export interface RenderScannerProps {
+  refreshScanner: () => void;
+  isPaused: boolean;
+}
+
 interface ScannerWrapperProps {
   onScan: (value: string) => void;
   onError?: (err: string) => void;
+  children?: React.ReactNode | ((props: RenderScannerProps) => React.ReactNode);
 }
 
-export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps) {
+export default function ScannerWrapper({ onScan, onError, children }: ScannerWrapperProps) {
   const containerId = 'html5qrcode-scanner-container';
+  const [scanMode, setScanMode] = useState<'barcode' | 'qrcode'>('barcode');
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [scannerStatus, setScannerStatus] = useState<string>('Initializing Scanner...');
   const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [isCameraPaused, setIsCameraPaused] = useState<boolean>(false);
 
   // Camera capabilities (Zoom & Torch)
   const [supportsTorch, setSupportsTorch] = useState<boolean>(false);
@@ -83,7 +91,32 @@ export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps)
       return;
     }
     lastScannedRef.current = { value: cleanValue, time: now };
+
+    // Pause camera stream on frame decode
+    if (html5QrcodeRef.current && html5QrcodeRef.current.isScanning) {
+      try {
+        html5QrcodeRef.current.pause(true);
+        setIsCameraPaused(true);
+      } catch (e) {
+        console.log('Error pausing html5Qrcode:', e);
+      }
+    }
+
+    setScannerStatus(`Code Scanned: ${cleanValue} (Camera Paused)`);
     onScanRef.current(cleanValue);
+  };
+
+  const handleRefreshScanner = () => {
+    if (html5QrcodeRef.current && isCameraPaused) {
+      try {
+        html5QrcodeRef.current.resume();
+      } catch (e) {
+        console.log('Error resuming html5Qrcode:', e);
+      }
+    }
+    setIsCameraPaused(false);
+    setCroppedPreviewUrl(null);
+    setScannerStatus(`Active (${scanMode === 'barcode' ? 'Bar Code' : 'QR Code'}) - Position code in viewfinder`);
   };
 
   useEffect(() => {
@@ -92,21 +125,31 @@ export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps)
     const initScanner = async () => {
       try {
         setCameraError(null);
-        setScannerStatus('Starting Camera Feed...');
+        setIsCameraPaused(false);
+        setScannerStatus(`Starting ${scanMode === 'barcode' ? 'Bar Code' : 'QR Code'} Scanner...`);
 
-        const formatsToSupport = [
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.CODE_39,
-          Html5QrcodeSupportedFormats.CODE_93,
-          Html5QrcodeSupportedFormats.QR_CODE,
-          Html5QrcodeSupportedFormats.DATA_MATRIX,
-          Html5QrcodeSupportedFormats.PDF_417,
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.ITF,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.UPC_E,
-        ];
+        // Configure formats based on scan mode
+        const formatsToSupport =
+          scanMode === 'barcode'
+            ? [
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.CODE_93,
+                Html5QrcodeSupportedFormats.ITF,
+                Html5QrcodeSupportedFormats.EAN_13,
+                Html5QrcodeSupportedFormats.EAN_8,
+                Html5QrcodeSupportedFormats.UPC_A,
+                Html5QrcodeSupportedFormats.UPC_E,
+                Html5QrcodeSupportedFormats.CODABAR,
+                Html5QrcodeSupportedFormats.RSS_14,
+                Html5QrcodeSupportedFormats.RSS_EXPANDED,
+              ]
+            : [
+                Html5QrcodeSupportedFormats.QR_CODE,
+                Html5QrcodeSupportedFormats.DATA_MATRIX,
+                Html5QrcodeSupportedFormats.PDF_417,
+                Html5QrcodeSupportedFormats.AZTEC,
+              ];
 
         const html5Qrcode = new Html5Qrcode(containerId, {
           formatsToSupport,
@@ -115,16 +158,23 @@ export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps)
 
         html5QrcodeRef.current = html5Qrcode;
 
+        const isBarcode = scanMode === 'barcode';
         const config = {
           fps: 25,
           qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+            if (isBarcode) {
+              return {
+                width: Math.floor(viewfinderWidth * 0.9),
+                height: Math.floor(viewfinderHeight * 0.7),
+              };
+            }
             const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
             return {
-              width: Math.floor(minEdge * 0.9),
-              height: Math.floor(minEdge * 0.9),
+              width: Math.floor(minEdge * 0.75),
+              height: Math.floor(minEdge * 0.75),
             };
           },
-          aspectRatio: 1.0, // 1:1 Aspect Ratio
+          aspectRatio: isBarcode ? 2.0 : 1.0, // 16:8 (2:1) for Barcode, 1:1 for QR
           experimentalFeatures: {
             useBarCodeDetectorIfSupported: true,
           },
@@ -147,7 +197,7 @@ export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps)
 
         if (mounted) {
           setIsScanning(true);
-          setScannerStatus('Active - Hold Barcode or QR Code in box');
+          setScannerStatus(`Active (${isBarcode ? 'Bar Code' : 'QR Code'}) - Position code in viewfinder`);
 
           // Query video track capabilities for Torch & Zoom
           try {
@@ -193,7 +243,7 @@ export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps)
         }
       }
     };
-  }, [onError, croppedPreviewUrl]);
+  }, [onError, croppedPreviewUrl, scanMode]);
 
   const toggleTorch = async () => {
     if (!html5QrcodeRef.current || !supportsTorch) return;
@@ -230,7 +280,13 @@ export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps)
 
     // Open Crop Modal with photo
     setCropModalImage(photoUrl);
-    setCropBox({ x: 5, y: 20, width: 90, height: 50 }); // Default horizontal crop overlay
+
+    // Set crop overlay based on current scan mode
+    if (scanMode === 'barcode') {
+      setCropBox({ x: 5, y: 25, width: 90, height: 50 }); // Wide horizontal crop for barcodes
+    } else {
+      setCropBox({ x: 20, y: 20, width: 60, height: 60 }); // Square crop for QR codes
+    }
 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -385,7 +441,7 @@ export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps)
     setCroppedPreviewUrl(croppedDataUrl);
     setCropModalImage(null);
 
-    setScannerStatus('Decoding cropped barcode photo...');
+    setScannerStatus('Decoding cropped code photo...');
 
     // Decode cropped area using multi-pass WASM decoder
     const decodedValue = await decodeCroppedCanvas(canvas);
@@ -397,11 +453,14 @@ export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps)
     }
   };
 
+  const isBarcode = scanMode === 'barcode';
+  const viewportAspectClass = isBarcode ? 'aspect-[16/8]' : 'aspect-square';
+
   return (
     <div className="space-y-3">
-      {/* 1:1 Aspect Ratio Preview Viewport */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-black aspect-square max-w-md mx-auto w-full flex items-center justify-center shadow-xl">
-        {/* If Cropped Photo Preview is active, display it inside the 1:1 box */}
+      {/* Aspect Ratio Viewport (16:8 for Bar Code, 1:1 for QR Code) */}
+      <div className={`relative overflow-hidden rounded-2xl border border-slate-200 bg-black ${viewportAspectClass} max-w-md mx-auto w-full flex items-center justify-center shadow-xl transition-all duration-300 [&_#qr-shaded-region]:!hidden [&_div[style*="border"]]:!border-0`}>
+        {/* If Cropped Photo Preview is active, display it inside the active aspect box */}
         {croppedPreviewUrl ? (
           <div className="relative w-full h-full flex flex-col items-center justify-center bg-slate-950 p-2">
             <img
@@ -418,10 +477,7 @@ export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps)
             {/* Switch to Live Camera Button */}
             <button
               type="button"
-              onClick={() => {
-                setCroppedPreviewUrl(null);
-                setScannerStatus('Active - Hold Barcode or QR Code in box');
-              }}
+              onClick={handleRefreshScanner}
               className="absolute bottom-3 bg-white/90 hover:bg-white text-slate-800 text-xs font-bold px-3 py-2 rounded-xl shadow-lg cursor-pointer transition-all flex items-center gap-1.5 z-10"
             >
               <span>🎥</span> Switch to Live Camera
@@ -439,13 +495,38 @@ export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps)
               </div>
             )}
 
+
+
+            {/* Clean Target Framing Box Overlay */}
+            {isScanning && !cameraError && !croppedPreviewUrl && !isCameraPaused && (
+              <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center p-3">
+                {isBarcode ? (
+                  /* Barcode Mode Target Frame (Wide Horizontal Strip) */
+                  <div className="relative w-[90%] h-[70%] border-2 border-dashed border-white/30 rounded-xl shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+                    <div className="w-6 h-6 border-t-4 border-l-4 border-blue-500 absolute -top-1 -left-1 rounded-tl-lg shadow-md" />
+                    <div className="w-6 h-6 border-t-4 border-r-4 border-blue-500 absolute -top-1 -right-1 rounded-tr-lg shadow-md" />
+                    <div className="w-6 h-6 border-b-4 border-l-4 border-blue-500 absolute -bottom-1 -left-1 rounded-bl-lg shadow-md" />
+                    <div className="w-6 h-6 border-b-4 border-r-4 border-blue-500 absolute -bottom-1 -right-1 rounded-br-lg shadow-md" />
+                  </div>
+                ) : (
+                  /* QR Code Mode Target Frame (1:1 Square Box) */
+                  <div className="relative w-[75%] h-[75%] border-2 border-dashed border-white/30 rounded-2xl shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+                    <div className="w-7 h-7 border-t-4 border-l-4 border-blue-500 absolute -top-1 -left-1 rounded-tl-xl shadow-md" />
+                    <div className="w-7 h-7 border-t-4 border-r-4 border-blue-500 absolute -top-1 -right-1 rounded-tr-xl shadow-md" />
+                    <div className="w-7 h-7 border-b-4 border-l-4 border-blue-500 absolute -bottom-1 -left-1 rounded-bl-xl shadow-md" />
+                    <div className="w-7 h-7 border-b-4 border-r-4 border-blue-500 absolute -bottom-1 -right-1 rounded-br-xl shadow-md" />
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Animated laser line */}
-            {isScanning && !cameraError && (
-              <div className="absolute left-0 right-0 h-0.5 bg-green-500/90 shadow-[0_0_12px_#22c55e] animate-bounce top-0 pointer-events-none z-10" />
+            {isScanning && !cameraError && !isCameraPaused && (
+              <div className="absolute left-0 right-0 h-0.5 bg-green-500/90 shadow-[0_0_12px_#22c55e] animate-bounce top-0 pointer-events-none z-15" />
             )}
 
             {/* Camera Control Overlays (Torch & Zoom) */}
-            {isScanning && !cameraError && (supportsTorch || supportsZoom) && (
+            {isScanning && !cameraError && (supportsTorch || supportsZoom) && !isCameraPaused && (
               <div className="absolute top-3 right-3 z-20 flex gap-2">
                 {supportsTorch && (
                   <button
@@ -489,28 +570,59 @@ export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps)
         )}
       </div>
 
-      {/* Status & File Upload Option */}
-      <div className="flex flex-col items-center gap-2 text-center">
-        <div className="text-[11px] text-slate-500 font-semibold tracking-wide">
-          {scannerStatus}
-        </div>
+      {/* Bar Code / QR Code Toggle Selector */}
+      <div className="flex bg-slate-200/80 p-1 rounded-2xl w-full max-w-md mx-auto text-xs font-semibold select-none shadow-inner border border-slate-300/50">
+        <button
+          type="button"
+          onClick={() => {
+            setScanMode('barcode');
+            handleRefreshScanner();
+          }}
+          className={`flex-1 py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            scanMode === 'barcode'
+              ? 'bg-white text-blue-600 shadow-md font-bold'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span>📊</span> Bar Code (16:8)
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setScanMode('qrcode');
+            handleRefreshScanner();
+          }}
+          className={`flex-1 py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            scanMode === 'qrcode'
+              ? 'bg-white text-blue-600 shadow-md font-bold'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span>🔳</span> QR Code (1:1)
+        </button>
+      </div>
 
-        <div>
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept="image/*"
-            className="hidden"
-            onChange={handleFileUpload}
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3.5 py-2 rounded-xl transition-colors cursor-pointer inline-flex items-center gap-1.5 shadow-sm border border-blue-100"
-          >
-            🖼️ Pick Photo & Crop Barcode
-          </button>
-        </div>
+      {/* Children elements (Scanned / Tracking ID Input Card) */}
+      {typeof children === 'function'
+        ? children({ refreshScanner: handleRefreshScanner, isPaused: isCameraPaused })
+        : children}
+
+      {/* Full Width Gallery Pick Option (Placed below Scanned / Tracking ID card) */}
+      <div className="w-full max-w-md mx-auto">
+        <input
+          type="file"
+          ref={fileInputRef}
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileUpload}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="w-full text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-4 py-2.5 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-sm border border-blue-100/80"
+        >
+          <span>🖼️</span> Pick from Gallery
+        </button>
       </div>
 
       {/* Touch-Friendly Mobile Photo Crop Modal */}
@@ -519,7 +631,7 @@ export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps)
           {/* Header */}
           <div className="w-full max-w-md flex items-center justify-between pt-2 pb-2">
             <div className="flex items-center gap-2 text-white font-bold text-sm">
-              <span className="text-base">✂️</span> Crop Barcode Region
+              <span className="text-base">✂️</span> Crop {isBarcode ? 'Barcode' : 'QR Code'} Region
             </div>
             <button
               type="button"
@@ -531,7 +643,7 @@ export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps)
           </div>
 
           <div className="text-[11px] text-slate-400 text-center -mt-1 mb-2">
-            Drag the box or drag its 4 corners to fit the barcode
+            Drag the box or drag its 4 corners to fit the code
           </div>
 
           {/* Touch & Drag Canvas Box */}
@@ -563,7 +675,7 @@ export default function ScannerWrapper({ onScan, onError }: ScannerWrapperProps)
               >
                 {/* Center Badge Label */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-blue-600/90 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-md pointer-events-none whitespace-nowrap">
-                  Barcode Area
+                  {isBarcode ? 'Barcode Area' : 'QR Area'}
                 </div>
 
                 {/* 4 Corner Drag Knobs */}
