@@ -102,7 +102,7 @@ export default function ScannerWrapper({ onScan, onError, children }: ScannerWra
       }
     }
 
-    setScannerStatus(`Code Scanned: ${cleanValue} (Camera Paused)`);
+    setScannerStatus(`Code Scanned: ${cleanValue}`);
     onScanRef.current(cleanValue);
   };
 
@@ -164,19 +164,19 @@ export default function ScannerWrapper({ onScan, onError, children }: ScannerWra
           qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
             if (isBarcode) {
               return {
-                width: Math.floor(viewfinderWidth * 0.9),
-                height: Math.floor(viewfinderHeight * 0.7),
+                width: Math.floor(viewfinderWidth * 0.85),
+                height: Math.floor(viewfinderHeight * 0.60),
               };
             }
             const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
             return {
-              width: Math.floor(minEdge * 0.75),
-              height: Math.floor(minEdge * 0.75),
+              width: Math.floor(minEdge * 0.70),
+              height: Math.floor(minEdge * 0.70),
             };
           },
           aspectRatio: isBarcode ? 2.0 : 1.0, // 16:8 (2:1) for Barcode, 1:1 for QR
           experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true,
+            useBarCodeDetectorIfSupported: false, // Enforce strict canvas cropping to target viewfinder box ONLY
           },
         };
 
@@ -459,7 +459,7 @@ export default function ScannerWrapper({ onScan, onError, children }: ScannerWra
   return (
     <div className="space-y-3">
       {/* Aspect Ratio Viewport (16:8 for Bar Code, 1:1 for QR Code) */}
-      <div className={`relative overflow-hidden rounded-2xl border border-slate-200 bg-black ${viewportAspectClass} max-w-md mx-auto w-full flex items-center justify-center shadow-xl transition-all duration-300 [&_#qr-shaded-region]:!hidden [&_div[style*="border"]]:!border-0`}>
+      <div className={`relative overflow-hidden rounded-2xl border border-slate-200 bg-black ${viewportAspectClass} max-w-md mx-auto w-full flex items-center justify-center shadow-xl transition-all duration-300 [&_#qr-shaded-region]:!hidden [&_div[style*="border"]]:!border-0 [&_div[style*="rgba"]]:!hidden [&_div[style*="z-index: 1"]]:!hidden`}>
         {/* If Cropped Photo Preview is active, display it inside the active aspect box */}
         {croppedPreviewUrl ? (
           <div className="relative w-full h-full flex flex-col items-center justify-center bg-slate-950 p-2">
@@ -495,14 +495,12 @@ export default function ScannerWrapper({ onScan, onError, children }: ScannerWra
               </div>
             )}
 
-
-
             {/* Clean Target Framing Box Overlay */}
             {isScanning && !cameraError && !croppedPreviewUrl && !isCameraPaused && (
               <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center p-3">
                 {isBarcode ? (
                   /* Barcode Mode Target Frame (Wide Horizontal Strip) */
-                  <div className="relative w-[90%] h-[70%] border-2 border-dashed border-white/30 rounded-xl shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+                  <div className="relative w-[85%] h-[60%] border-2 border-dashed border-white/40 rounded-xl shadow-[0_0_15px_rgba(0,0,0,0.5)]">
                     <div className="w-6 h-6 border-t-4 border-l-4 border-blue-500 absolute -top-1 -left-1 rounded-tl-lg shadow-md" />
                     <div className="w-6 h-6 border-t-4 border-r-4 border-blue-500 absolute -top-1 -right-1 rounded-tr-lg shadow-md" />
                     <div className="w-6 h-6 border-b-4 border-l-4 border-blue-500 absolute -bottom-1 -left-1 rounded-bl-lg shadow-md" />
@@ -510,7 +508,7 @@ export default function ScannerWrapper({ onScan, onError, children }: ScannerWra
                   </div>
                 ) : (
                   /* QR Code Mode Target Frame (1:1 Square Box) */
-                  <div className="relative w-[75%] h-[75%] border-2 border-dashed border-white/30 rounded-2xl shadow-[0_0_15px_rgba(0,0,0,0.5)]">
+                  <div className="relative w-[70%] h-[70%] border-2 border-dashed border-white/40 rounded-2xl shadow-[0_0_15px_rgba(0,0,0,0.5)]">
                     <div className="w-7 h-7 border-t-4 border-l-4 border-blue-500 absolute -top-1 -left-1 rounded-tl-xl shadow-md" />
                     <div className="w-7 h-7 border-t-4 border-r-4 border-blue-500 absolute -top-1 -right-1 rounded-tr-xl shadow-md" />
                     <div className="w-7 h-7 border-b-4 border-l-4 border-blue-500 absolute -bottom-1 -left-1 rounded-bl-xl shadow-md" />
