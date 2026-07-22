@@ -27,7 +27,7 @@ export default function ScannerWrapper({ onScan, onError, children }: ScannerWra
   const [supportsTorch, setSupportsTorch] = useState<boolean>(false);
   const [torchOn, setTorchOn] = useState<boolean>(false);
   const [supportsZoom, setSupportsZoom] = useState<boolean>(false);
-  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [zoomLevel, setZoomLevel] = useState<number>(1.5);
   const [maxZoom, setMaxZoom] = useState<number>(1);
 
   // Photo Crop Modal State
@@ -209,8 +209,21 @@ export default function ScannerWrapper({ onScan, onError, children }: ScannerWra
               }
               if (capabilities.zoom) {
                 setSupportsZoom(true);
-                setZoomLevel(capabilities.zoom.min || 1);
-                setMaxZoom(capabilities.zoom.max || 3);
+                const minZ = capabilities.zoom.min || 1;
+                const maxZ = capabilities.zoom.max || 3;
+                setMaxZoom(maxZ);
+
+                // Apply default 1.5x zoom for optimal barcode resolution
+                const defaultZoom = Math.min(Math.max(1.5, minZ), maxZ);
+                try {
+                  await html5Qrcode.applyVideoConstraints({
+                    advanced: [{ zoom: defaultZoom }] as any,
+                  });
+                  setZoomLevel(defaultZoom);
+                } catch (zErr) {
+                  console.log('Error applying default 1.5x zoom:', zErr);
+                  setZoomLevel(minZ);
+                }
               }
             }
           } catch (e) {
