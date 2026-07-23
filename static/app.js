@@ -1073,11 +1073,20 @@ function selectRow(record, trElement) {
             });
         }
 
-        // Accepted checkbox validation logic: ensure all input fields in item details have values
+        // Accepted checkbox validation logic: ensure an image is captured and all input fields in item details have values
         const acceptedCb = card.querySelector('.item-accepted-checkbox');
         if (acceptedCb) {
             acceptedCb.addEventListener('change', (e) => {
                 if (acceptedCb.checked) {
+                    // Check if an image is captured/linked for this item
+                    const linkedList = card.querySelector('.item-linked-images-list');
+                    const hasCapturedImage = (item.captures && item.captures.length > 0) || (linkedList && linkedList.children.length > 0);
+                    if (!hasCapturedImage) {
+                        acceptedCb.checked = false;
+                        showToast("Image Required", "Please capture an image for this item before checking Accepted.", null, true);
+                        return;
+                    }
+
                     const cardInputs = card.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"])');
                     let blankFound = false;
                     cardInputs.forEach(input => {
@@ -1088,7 +1097,6 @@ function selectRow(record, trElement) {
                     if (blankFound) {
                         acceptedCb.checked = false;
                         showToast("Incomplete Item Details", "Please fill in all input fields in item details before accepting.", null, true);
-                        alert("Please fill in all input fields in item details before checking Accepted.");
                     }
                 }
             });
@@ -1207,7 +1215,6 @@ function handleFormSubmit(e) {
     
     if (!allAccepted) {
         showToast("Acceptance Required", "Please accept these items to generate documents.", null, true);
-        alert("Please accept these items to generate documents.");
         return;
     }
     
@@ -1497,20 +1504,35 @@ function handleSendEmail(e) {
     });
 }
 
-// Toast notification helper
-function showToast(title, body, files = null, isError = false) {
+let toastTimeout = null;
+
+// Toast notification helper with 7-second timer bar
+function showToast(title, body, files = null, isError = false, durationMs = 7000) {
+    if (toastTimeout) {
+        clearTimeout(toastTimeout);
+        toastTimeout = null;
+    }
+
     toastTitle.textContent = title;
     toastBody.textContent = body;
+    
+    const progressBar = document.getElementById('toast-progress-bar');
+    if (progressBar) {
+        progressBar.style.transition = 'none';
+        progressBar.style.width = '100%';
+    }
     
     if (isError) {
         toast.style.borderColor = "#ef4444";
         toastIcon.textContent = "❌";
         toastIcon.style.color = "#ef4444";
+        if (progressBar) progressBar.style.background = "#ef4444";
         toastLinks.classList.add('hidden');
     } else {
         toast.style.borderColor = "var(--accent-success)";
         toastIcon.textContent = "✔️";
         toastIcon.style.color = "var(--accent-success)";
+        if (progressBar) progressBar.style.background = "var(--accent-success)";
         
         if (files) {
             toastLinks.classList.remove('hidden');
@@ -1526,10 +1548,13 @@ function showToast(title, body, files = null, isError = false) {
     
     toast.classList.remove('hidden');
     
-    // Auto-close after 12 seconds if no error
-    if (!isError) {
-        setTimeout(closeToast, 12000);
+    if (progressBar) {
+        void progressBar.offsetWidth; // Force reflow for linear transition restart
+        progressBar.style.transition = `width ${durationMs}ms linear`;
+        progressBar.style.width = '0%';
     }
+    
+    toastTimeout = setTimeout(closeToast, durationMs);
 }
 
 function setupFileOpenLink(elementId, filepath) {
@@ -1694,7 +1719,13 @@ function openOutputsFolder() {
 }
 
 function closeToast() {
-    toast.classList.add('hidden');
+    if (toastTimeout) {
+        clearTimeout(toastTimeout);
+        toastTimeout = null;
+    }
+    if (toast) {
+        toast.classList.add('hidden');
+    }
 }
 
 function triggerFilePicker() {
@@ -2389,7 +2420,7 @@ function handleOpenReportClick() {
     const reportTextarea = document.getElementById('rec-report-text');
     
     if (!selectedRowId) {
-        alert("Please select a record from the dropdown first.");
+        showToast("Record Required", "Please select a record from the dropdown first.", null, true);
         return;
     }
     

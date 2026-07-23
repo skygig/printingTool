@@ -505,19 +505,30 @@ textarea {
     position: fixed;
     bottom: 24px;
     right: 24px;
-    background: rgba(15, 23, 42, 0.9);
+    background: rgba(15, 23, 42, 0.95);
     border: 1px solid var(--accent-success);
     box-shadow: 0 10px 40px -10px var(--accent-success-glow);
     backdrop-filter: blur(12px);
-    padding: 16px 20px;
+    padding: 16px 20px 20px 20px;
     border-radius: 16px;
-    z-index: 100;
+    z-index: 10000;
     display: flex;
     align-items: flex-start;
     gap: 14px;
     max-width: 420px;
     transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
     animation: slideUp 0.3s ease;
+    overflow: hidden;
+}
+
+.toast-progress-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 4px;
+    width: 100%;
+    background: var(--accent-success);
+    border-radius: 0 0 16px 16px;
 }
 
 .toast.hidden {
