@@ -286,6 +286,18 @@ tbody tr.selected td {
     border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
+.status-badge.to-be-invoiced {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+body.light-theme .status-badge.to-be-invoiced {
+    background: #dbeafe;
+    color: #1d4ed8;
+    border-color: #93c5fd;
+}
+
 /* Pagination */
 .pagination {
     display: flex;

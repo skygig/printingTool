@@ -980,7 +980,14 @@ def update_records():
             if rec:
                 outbound_tr = (rec.get('outbound_tracking') or '').strip()
                 inbound_tr = (rec.get('inbound_tracking') or '').strip()
-                if outbound_tr != '' or inbound_tr != '':
+                is_shipping_update = any(k in upd for k in ['outbound_tracking', 'shipped_date', 'outbound_carrier', 'ship_to', 'outbound_weight', 'outbound_l', 'outbound_w', 'outbound_h'])
+                is_receiving_update = any(k in upd for k in ['inbound_tracking', 'received_date', 'inbound_carrier', 'no_of_boxes', 'inbound_weight', 'inbound_l', 'inbound_w', 'inbound_h', 'photo', 'report'])
+                
+                if is_shipping_update and outbound_tr != '':
+                    return jsonify({'error': 'This order is completed in Shipping (Tracking / Pro # present). Only an Admin can edit details. Please ask an admin to make changes.'}), 403
+                if is_receiving_update and inbound_tr != '':
+                    return jsonify({'error': 'This order is completed in Receiving (Tracking# / Pro Number present). Only an Admin can edit details. Please ask an admin to make changes.'}), 403
+                if not is_shipping_update and not is_receiving_update and (outbound_tr != '' or inbound_tr != ''):
                     return jsonify({'error': 'This order is completed (Tracking / Pro # present). Only an Admin can edit details. Please ask an admin to make changes.'}), 403
 
     try:

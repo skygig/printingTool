@@ -30,19 +30,64 @@ let currentUserRole = 'employee';
 // COMPLETED RECORD EDIT RESTRICTION LOGIC
 // ==========================================
 
-function isRecordCompleted(rec) {
+function isShippingRecordCompleted(rec) {
     if (!rec) return false;
-    const outboundTr = (rec.outbound_tracking || '').toString().trim();
-    const inboundTr = (rec.inbound_tracking || '').toString().trim();
-    return outboundTr !== '' || inboundTr !== '';
+    return (rec.outbound_tracking || '').toString().trim() !== '';
 }
 
-function isRecordOrGroupCompleted(recordOrGroup) {
+function isShippingGroupCompleted(recordOrGroup) {
     if (!recordOrGroup) return false;
     if (Array.isArray(recordOrGroup)) {
-        return recordOrGroup.some(r => isRecordCompleted(r));
+        return recordOrGroup.some(r => isShippingRecordCompleted(r));
     }
-    return isRecordCompleted(recordOrGroup);
+    return isShippingRecordCompleted(recordOrGroup);
+}
+
+function isReceivingRecordCompleted(rec) {
+    if (!rec) return false;
+    return (rec.inbound_tracking || '').toString().trim() !== '';
+}
+
+function isReceivingGroupCompleted(recordOrGroup) {
+    if (!recordOrGroup) return false;
+    if (Array.isArray(recordOrGroup)) {
+        return recordOrGroup.some(r => isReceivingRecordCompleted(r));
+    }
+    return isReceivingRecordCompleted(recordOrGroup);
+}
+
+function getShippingInvoiceStatus(rec, currentTrackingInput = '') {
+    if (!rec) return { statusClass: 'pending', statusLabel: 'Not Invoiced' };
+    const rawStatus = (rec.invoice_status || '').trim();
+    if (rawStatus.toLowerCase() === 'invoiced') {
+        return { statusClass: 'invoiced', statusLabel: rawStatus || 'Invoiced' };
+    }
+
+    const trackingInInput = (currentTrackingInput || '').trim();
+    const hasTracking = isShippingRecordCompleted(rec) || trackingInInput !== '';
+
+    if (hasTracking) {
+        return { statusClass: 'to-be-invoiced', statusLabel: 'To be Invoiced' };
+    }
+
+    return { statusClass: 'pending', statusLabel: rawStatus || 'Not Invoiced' };
+}
+
+function getReceivingInvoiceStatus(rec, currentTrackingInput = '') {
+    if (!rec) return { statusClass: 'pending', statusLabel: 'Not Invoiced' };
+    const rawStatus = (rec.invoice_status || '').trim();
+    if (rawStatus.toLowerCase() === 'invoiced') {
+        return { statusClass: 'invoiced', statusLabel: rawStatus || 'Invoiced' };
+    }
+
+    const trackingInInput = (currentTrackingInput || '').trim();
+    const hasTracking = isReceivingRecordCompleted(rec) || trackingInInput !== '';
+
+    if (hasTracking) {
+        return { statusClass: 'to-be-invoiced', statusLabel: 'To be Invoiced' };
+    }
+
+    return { statusClass: 'pending', statusLabel: rawStatus || 'Not Invoiced' };
 }
 
 function setContainerControlsState(containerElement, disabled, exceptIds = []) {
@@ -67,7 +112,7 @@ function updateShippingLockState() {
     }
 
     const trackingInInput = inputOutboundTracking ? inputOutboundTracking.value.trim() : '';
-    const hasTracking = isRecordOrGroupCompleted(groupRecords) || trackingInInput !== '';
+    const hasTracking = isShippingGroupCompleted(groupRecords) || trackingInInput !== '';
     const isLocked = hasTracking && currentUserRole !== 'admin';
 
     if (warningEl) {
@@ -86,6 +131,7 @@ function updateShippingLockState() {
     }
 
     setContainerControlsState(formEl, isLocked, ['btn-save-shipping-changes']);
+    renderTable();
 }
 
 function updateReceivingLockState() {
@@ -96,7 +142,7 @@ function updateReceivingLockState() {
 
     const recTrackingEl = document.getElementById('rec-tracking');
     const trackingInInput = recTrackingEl ? recTrackingEl.value.trim() : '';
-    const hasTracking = isRecordOrGroupCompleted(activeReceivingRecords) || trackingInInput !== '';
+    const hasTracking = isReceivingGroupCompleted(activeReceivingRecords) || trackingInInput !== '';
     const isLocked = hasTracking && currentUserRole !== 'admin';
 
     if (warningEl) {
@@ -115,6 +161,7 @@ function updateReceivingLockState() {
     }
 
     setContainerControlsState(formEl, isLocked, ['btn-save-receiving']);
+    renderReceivingTable();
 }
 
 // Receiving State Variables
@@ -368,7 +415,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     groupRecords = records.filter(r => (r.customer_po || '').trim() === po);
                 }
                 const trackingInInput = inputOutboundTracking ? inputOutboundTracking.value.trim() : '';
-                if (isRecordOrGroupCompleted(groupRecords) || trackingInInput !== '') {
+                if (isShippingGroupCompleted(groupRecords) || trackingInInput !== '') {
                     showToast("Editing Restricted", "This order is completed (Tracking / Pro # present). Only an Admin can edit details. Please ask an admin to make changes.", null, true);
                 }
             }
@@ -380,7 +427,7 @@ window.addEventListener('DOMContentLoaded', () => {
         recFormElement.addEventListener('click', (e) => {
             if (currentUserRole !== 'admin' && activeReceivingRecords.length > 0) {
                 const trackingInInput = recTrackingInput ? recTrackingInput.value.trim() : '';
-                if (isRecordOrGroupCompleted(activeReceivingRecords) || trackingInInput !== '') {
+                if (isReceivingGroupCompleted(activeReceivingRecords) || trackingInInput !== '') {
                     showToast("Editing Restricted", "This order is completed (Tracking / Pro # present). Only an Admin can edit details. Please ask an admin to make changes.", null, true);
                 }
             }
@@ -801,9 +848,8 @@ function renderTable() {
             tr.classList.add('selected');
         }
         
-        const invoiceStatus = (rec.invoice_status || '').trim();
-        const statusClass = invoiceStatus.toLowerCase() === 'invoiced' ? 'invoiced' : 'pending';
-        const statusLabel = invoiceStatus || 'Not Invoiced';
+        const trackingInputVal = isSelected && inputOutboundTracking ? inputOutboundTracking.value : '';
+        const { statusClass, statusLabel } = getShippingInvoiceStatus(rec, trackingInputVal);
         
         // Truncate desc for table
         const shortDesc = rec.part_received.length > 35 ? rec.part_received.substring(0, 35) + '...' : rec.part_received;
@@ -1317,7 +1363,7 @@ function handleSaveShippingChanges(e) {
             groupRecordsCheck = records.filter(r => (r.customer_po || '').trim() === poCheck);
         }
         const trackingInInput = inputOutboundTracking ? inputOutboundTracking.value.trim() : '';
-        if (isRecordOrGroupCompleted(groupRecordsCheck) || trackingInInput !== '') {
+        if (isShippingGroupCompleted(groupRecordsCheck) || trackingInInput !== '') {
             showToast("Access Denied", "This order is completed (Tracking / Pro # present). Only an Admin can edit details. Please ask an admin to make changes.", null, true);
             return;
         }
@@ -2210,9 +2256,9 @@ function renderReceivingTable() {
             tr.classList.add('receiving-selected');
         }
         
-        const invoiceStatus = (rec.invoice_status || '').trim();
-        const statusClass = invoiceStatus.toLowerCase() === 'invoiced' ? 'invoiced' : 'pending';
-        const statusLabel = invoiceStatus || 'Not Invoiced';
+        const recTrackingEl = document.getElementById('rec-tracking');
+        const trackingInputVal = isSelected && recTrackingEl ? recTrackingEl.value : '';
+        const { statusClass, statusLabel } = getReceivingInvoiceStatus(rec, trackingInputVal);
         const shortDesc = rec.part_received.length > 35 ? rec.part_received.substring(0, 35) + '...' : rec.part_received;
         
         tr.innerHTML = `
@@ -2496,7 +2542,7 @@ function handleReceivingSave(e) {
     if (currentUserRole !== 'admin') {
         const recTrackingEl = document.getElementById('rec-tracking');
         const trackingInInput = recTrackingEl ? recTrackingEl.value.trim() : '';
-        if (isRecordOrGroupCompleted(activeReceivingRecords) || trackingInInput !== '') {
+        if (isReceivingGroupCompleted(activeReceivingRecords) || trackingInInput !== '') {
             showToast("Access Denied", "This order is completed (Tracking / Pro # present). Only an Admin can edit details. Please ask an admin to make changes.", null, true);
             return;
         }
