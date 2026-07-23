@@ -24,6 +24,98 @@ let filteredRecords = [];
 let currentPage = 1;
 const rowsPerPage = 10;
 let selectedRecord = null;
+let currentUserRole = 'employee';
+
+// ==========================================
+// COMPLETED RECORD EDIT RESTRICTION LOGIC
+// ==========================================
+
+function isRecordCompleted(rec) {
+    if (!rec) return false;
+    const outboundTr = (rec.outbound_tracking || '').toString().trim();
+    const inboundTr = (rec.inbound_tracking || '').toString().trim();
+    return outboundTr !== '' || inboundTr !== '';
+}
+
+function isRecordOrGroupCompleted(recordOrGroup) {
+    if (!recordOrGroup) return false;
+    if (Array.isArray(recordOrGroup)) {
+        return recordOrGroup.some(r => isRecordCompleted(r));
+    }
+    return isRecordCompleted(recordOrGroup);
+}
+
+function setContainerControlsState(containerElement, disabled, exceptIds = []) {
+    if (!containerElement) return;
+    const controls = containerElement.querySelectorAll('input, select, textarea, button');
+    controls.forEach(ctrl => {
+        if (exceptIds.includes(ctrl.id)) return;
+        ctrl.disabled = disabled;
+    });
+}
+
+function updateShippingLockState() {
+    const warningEl = document.getElementById('shipping-lock-warning');
+    const saveBtn = document.getElementById('btn-save-shipping-changes');
+    const formEl = document.getElementById('generator-form');
+    if (!selectedRecord || !formEl) return;
+
+    let groupRecords = [selectedRecord];
+    const po = (selectedRecord.customer_po || '').trim();
+    if (po) {
+        groupRecords = records.filter(r => (r.customer_po || '').trim() === po);
+    }
+
+    const trackingInInput = inputOutboundTracking ? inputOutboundTracking.value.trim() : '';
+    const hasTracking = isRecordOrGroupCompleted(groupRecords) || trackingInInput !== '';
+    const isLocked = hasTracking && currentUserRole !== 'admin';
+
+    if (warningEl) {
+        if (isLocked) warningEl.classList.remove('hidden');
+        else warningEl.classList.add('hidden');
+    }
+
+    if (saveBtn) {
+        if (isLocked) {
+            saveBtn.classList.add('hidden');
+            saveBtn.style.display = 'none';
+        } else {
+            saveBtn.classList.remove('hidden');
+            saveBtn.style.display = '';
+        }
+    }
+
+    setContainerControlsState(formEl, isLocked, ['btn-save-shipping-changes']);
+}
+
+function updateReceivingLockState() {
+    const warningEl = document.getElementById('receiving-lock-warning');
+    const saveBtn = document.getElementById('btn-save-receiving');
+    const formEl = document.getElementById('receiving-form');
+    if (!formEl || activeReceivingRecords.length === 0) return;
+
+    const recTrackingEl = document.getElementById('rec-tracking');
+    const trackingInInput = recTrackingEl ? recTrackingEl.value.trim() : '';
+    const hasTracking = isRecordOrGroupCompleted(activeReceivingRecords) || trackingInInput !== '';
+    const isLocked = hasTracking && currentUserRole !== 'admin';
+
+    if (warningEl) {
+        if (isLocked) warningEl.classList.remove('hidden');
+        else warningEl.classList.add('hidden');
+    }
+
+    if (saveBtn) {
+        if (isLocked) {
+            saveBtn.classList.add('hidden');
+            saveBtn.style.display = 'none';
+        } else {
+            saveBtn.classList.remove('hidden');
+            saveBtn.style.display = '';
+        }
+    }
+
+    setContainerControlsState(formEl, isLocked, ['btn-save-receiving']);
+}
 
 // Receiving State Variables
 let receivingFilteredRecords = [];
@@ -257,6 +349,44 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Dynamic lock state updates when Tracking inputs change
+    if (inputOutboundTracking) {
+        inputOutboundTracking.addEventListener('input', updateShippingLockState);
+    }
+    const recTrackingInput = document.getElementById('rec-tracking');
+    if (recTrackingInput) {
+        recTrackingInput.addEventListener('input', updateReceivingLockState);
+    }
+
+    // Non-admin click notification listeners on locked forms
+    if (generatorForm) {
+        generatorForm.addEventListener('click', (e) => {
+            if (currentUserRole !== 'admin' && selectedRecord) {
+                let groupRecords = [selectedRecord];
+                const po = (selectedRecord.customer_po || '').trim();
+                if (po) {
+                    groupRecords = records.filter(r => (r.customer_po || '').trim() === po);
+                }
+                const trackingInInput = inputOutboundTracking ? inputOutboundTracking.value.trim() : '';
+                if (isRecordOrGroupCompleted(groupRecords) || trackingInInput !== '') {
+                    showToast("Editing Restricted", "This order is completed (Tracking / Pro # present). Only an Admin can edit details. Please ask an admin to make changes.", null, true);
+                }
+            }
+        });
+    }
+
+    const recFormElement = document.getElementById('receiving-form');
+    if (recFormElement) {
+        recFormElement.addEventListener('click', (e) => {
+            if (currentUserRole !== 'admin' && activeReceivingRecords.length > 0) {
+                const trackingInInput = recTrackingInput ? recTrackingInput.value.trim() : '';
+                if (isRecordOrGroupCompleted(activeReceivingRecords) || trackingInInput !== '') {
+                    showToast("Editing Restricted", "This order is completed (Tracking / Pro # present). Only an Admin can edit details. Please ask an admin to make changes.", null, true);
+                }
+            }
+        });
+    }
+
     // Theme Toggle Handler
     const themeToggle = document.getElementById('theme-toggle');
     const themeIcon = themeToggle ? themeToggle.querySelector('.theme-icon') : null;
@@ -455,6 +585,7 @@ function checkAuthStatus() {
         .then(res => res.json())
         .then(data => {
             if (data.authenticated) {
+                currentUserRole = data.role || 'employee';
                 const loginOverlay = document.getElementById('login-overlay');
                 if (loginOverlay) loginOverlay.classList.add('hidden');
                 
@@ -482,7 +613,11 @@ function checkAuthStatus() {
                 // Initialize database and files load
                 loadDatabase();
                 loadGeneratedFiles();
+
+                updateShippingLockState();
+                updateReceivingLockState();
             } else {
+                currentUserRole = 'employee';
                 const loginOverlay = document.getElementById('login-overlay');
                 if (loginOverlay) loginOverlay.classList.remove('hidden');
                 
@@ -1052,6 +1187,7 @@ function selectRow(record, trElement) {
     loadGeneratedFiles(record); // Clear/Load file list for the new selection
     renderLinkedImages(record); // Render linked shipping images
     updateCapturesPath();
+    updateShippingLockState();
     document.getElementById('editor-card').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -1166,6 +1302,19 @@ function handleFormSubmit(e) {
 
 function handleSaveShippingChanges(e) {
     if (!selectedRecord) return;
+
+    if (currentUserRole !== 'admin') {
+        let groupRecordsCheck = [selectedRecord];
+        const poCheck = (selectedRecord.customer_po || '').trim();
+        if (poCheck) {
+            groupRecordsCheck = records.filter(r => (r.customer_po || '').trim() === poCheck);
+        }
+        const trackingInInput = inputOutboundTracking ? inputOutboundTracking.value.trim() : '';
+        if (isRecordOrGroupCompleted(groupRecordsCheck) || trackingInInput !== '') {
+            showToast("Access Denied", "This order is completed (Tracking / Pro # present). Only an Admin can edit details. Please ask an admin to make changes.", null, true);
+            return;
+        }
+    }
 
     const saveBtn = document.getElementById('btn-save-shipping-changes');
     const originalText = saveBtn.innerHTML;
@@ -2213,6 +2362,7 @@ function handleReceiveAction() {
     });
     
     document.getElementById('rec-report-input-group').classList.add('hidden');
+    updateReceivingLockState();
 }
 
 // Individual Report selection handling
@@ -2311,6 +2461,15 @@ function handlePhotoFileChange(e) {
 function handleReceivingSave(e) {
     e.preventDefault();
     if (activeReceivingRecords.length === 0) return;
+
+    if (currentUserRole !== 'admin') {
+        const recTrackingEl = document.getElementById('rec-tracking');
+        const trackingInInput = recTrackingEl ? recTrackingEl.value.trim() : '';
+        if (isRecordOrGroupCompleted(activeReceivingRecords) || trackingInInput !== '') {
+            showToast("Access Denied", "This order is completed (Tracking / Pro # present). Only an Admin can edit details. Please ask an admin to make changes.", null, true);
+            return;
+        }
+    }
     
     const saveBtn = document.getElementById('btn-save-receiving');
     const originalText = saveBtn.innerHTML;

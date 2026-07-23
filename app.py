@@ -968,6 +968,21 @@ def update_records():
         
     updates = data['updates']
     ext = os.path.splitext(CURRENT_DB_PATH)[1].lower()
+    
+    # Completed Record restriction: Non-admins cannot edit records that already have a Tracking / Pro #
+    role = session.get('role', 'employee')
+    if role != 'admin':
+        current_records = load_current_database()
+        records_by_id = {r['row_id']: r for r in current_records if 'row_id' in r}
+        for upd in updates:
+            r_id = upd.get('row_id')
+            rec = records_by_id.get(r_id)
+            if rec:
+                outbound_tr = (rec.get('outbound_tracking') or '').strip()
+                inbound_tr = (rec.get('inbound_tracking') or '').strip()
+                if outbound_tr != '' or inbound_tr != '':
+                    return jsonify({'error': 'This order is completed (Tracking / Pro # present). Only an Admin can edit details. Please ask an admin to make changes.'}), 403
+
     try:
         if ext in ['.xlsx', '.xls']:
             update_excel_records(CURRENT_DB_PATH, CURRENT_SHEET, CURRENT_HEADER_ROW, updates)

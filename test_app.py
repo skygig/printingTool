@@ -633,7 +633,55 @@ class TestDocumentGeneratorApp(unittest.TestCase):
                 'image_ids': ['64b0f9f3f9f3f9f3f9f3f9f3']
             })
             print("  /api/link-shipping-images POST verified.")
+
+    def test_completed_record_update_restriction(self):
+        print("Testing completed record update restriction for non-admin vs admin...")
+        # 1. Login as employee
+        self.app.post(
+            '/api/login',
+            data=json.dumps({'username': 'accounting', 'password': 'Acc12361$'}),
+            content_type='application/json'
+        )
+        
+        # Mock load_current_database in app to return a completed record with tracking
+        with unittest.mock.patch('app.load_current_database') as mock_load, \
+             unittest.mock.patch('app.os.path.exists', return_value=True), \
+             unittest.mock.patch('app.update_excel_records') as mock_update:
+            
+            mock_load.return_value = [{
+                'row_id': 2,
+                'rms_po': '9679',
+                'customer_po': '42300276510',
+                'outbound_tracking': '1Z999AA10123456784',
+                'inbound_tracking': ''
+            }]
+            
+            # Non-admin try to update record #2
+            response = self.app.post(
+                '/api/update-records',
+                data=json.dumps({'updates': [{'row_id': 2, 'shipped_date': '05/20/2026'}]}),
+                content_type='application/json'
+            )
+            self.assertEqual(response.status_code, 403)
+            data = json.loads(response.data)
+            self.assertIn('completed', data['error'].lower())
+            
+            # 2. Login as admin (raj)
+            self.app.post(
+                '/api/login',
+                data=json.dumps({'username': 'raj', 'password': 'Plainfield1$'}),
+                content_type='application/json'
+            )
+            
+            # Admin update record #2 -> Allowed
+            response = self.app.post(
+                '/api/update-records',
+                data=json.dumps({'updates': [{'row_id': 2, 'shipped_date': '05/20/2026'}]}),
+                content_type='application/json'
+            )
+            self.assertEqual(response.status_code, 200)
+            mock_update.assert_called_once()
+        print("  Completed record update restriction verified successfully!")
             
 if __name__ == '__main__':
     unittest.main()
-
